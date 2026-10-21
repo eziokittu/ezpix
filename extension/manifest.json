@@ -1,0 +1,12 @@
+{
+  "manifest_version": 3,
+  "name": "EzPix by GlitchBong",
+  "version": "0.11.0",
+  "minimum_chrome_version": "120",
+  "description": "Capture visible webpage pixels, convert locally and continue editing in EzPix.",
+  "permissions": ["activeTab", "scripting", "alarms"],
+  "action": { "default_title": "Capture with EzPix", "default_popup": "popup.html" },
+  "background": { "service_worker": "background.js", "type": "module" },
+  "externally_connectable": { "matches": ["https://glitchbong.com/*"] },
+  "content_security_policy": { "extension_pages": "script-src 'self'; object-src 'none'" }
+}

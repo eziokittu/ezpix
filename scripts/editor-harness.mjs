@@ -1,0 +1,14 @@
+// Integration fallback for locked Next directories. NOT a Next/site build gate.
+import { build } from 'esbuild';
+import { createServer } from 'node:http';
+import { mkdir,readFile,writeFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
+const web=resolve('../glitchbong'),out=resolve('artifacts/editor-harness');await mkdir(out,{recursive:true});
+await build({stdin:{contents:`import React from 'react';import {createRoot} from 'react-dom/client';import Editor from '${web.replaceAll('\\','/')}/src/app/tools/ezpix/editor/editor.tsx';import Theme from '${web.replaceAll('\\','/')}/src/app/tools/ezpix/theme.tsx';import '${web.replaceAll('\\','/')}/src/app/tools/ezpix/ezpix.css';createRoot(document.getElementById('root')).render(<Theme><Editor/></Theme>);`,resolveDir:web,loader:'tsx'},bundle:true,format:'esm',outfile:resolve(out,'main.js'),nodePaths:[resolve(web,'node_modules')],jsx:'automatic',define:{'process.env.NODE_ENV':'"production"'},plugins:[{name:'test-link',setup(b){b.onResolve({filter:/^next\/link$/},()=>({path:'link',namespace:'qa'}));b.onLoad({filter:/.*/,namespace:'qa'},()=>({contents:`import React from 'react';export default function Link({href,children,...props}){return React.createElement('a',{href,...props},children);}`,resolveDir:web}));}}]});
+await build({entryPoints:[resolve(web,'src/app/tools/ezpix/editor/conversion-worker.ts')],bundle:true,format:'esm',outfile:resolve(out,'conversion-worker.js')});
+const bundle=await readFile(resolve(out,'main.js'),'utf8');await writeFile(resolve(out,'main.js'),bundle.replaceAll('./conversion-worker.ts','./conversion-worker.js'));
+const globals=await readFile(resolve(web,'src/app/globals.css'),'utf8'),theme=globals.match(/@theme inline\s*\{([\s\S]*?)\}/)[1];
+await writeFile(resolve(out,'tokens.css'),`:root{${theme}}*{box-sizing:border-box}body{margin:0;font-family:system-ui}`);
+const server=createServer(async(req,res)=>{try{const file=new URL(req.url,'http://localhost').pathname;const name=file.endsWith('.js')||file.endsWith('.css')?file.split('/').at(-1):null;if(name&&['main.js','main.css','tokens.css','conversion-worker.js'].includes(name)){res.setHeader('Content-Type',name.endsWith('.js')?'text/javascript':'text/css');res.end(await readFile(resolve(out,name)));}else{res.setHeader('Content-Type','text/html');res.end('<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/tokens.css"><link rel="stylesheet" href="/main.css"></head><body><div id="root"></div><script type="module" src="/main.js"></script></body></html>');}}catch{res.statusCode=500;res.end('Harness error');}});
+server.listen(Number(process.env.EZPIX_QA_PORT??3791),()=>console.log('Actual-editor integration harness on localhost:3791; does not prove Next build.'));
+process.on('SIGTERM',()=>server.close(()=>process.exit(0)));

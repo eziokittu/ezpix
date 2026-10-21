@@ -1,0 +1,16 @@
+{
+  "name": "ezpix-workspace",
+  "private": true,
+  "scripts": {
+    "build": "tsc -p packages/core/tsconfig.json && node scripts/copy-core-assets.mjs",
+    "test": "npm run build && node --test packages/core/test/*.test.mjs extension/test/*.test.mjs",
+    "pack:core": "npm run build && node scripts/pack-core.mjs",
+    "build:extension": "npm run build && node scripts/build-extension.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.64.1",
+    "typescript": "^5.9.3",
+    "esbuild": "0.28.1"
+  },
+  "type": "module"
+}

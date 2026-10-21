@@ -1,0 +1,33 @@
+{
+  "name": "@ezpix/core",
+  "version": "0.11.0",
+  "private": true,
+  "type": "module",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./converter": {
+      "types": "./dist/converter.d.ts",
+      "default": "./dist/converter.js"
+    },
+    "./browser": {
+      "types": "./dist/browser.d.ts",
+      "default": "./dist/browser.js"
+    },
+    "./worker": {
+      "types": "./dist/worker.d.ts",
+      "default": "./dist/worker.js"
+    },
+    "./converter.css": "./dist/converter.css",
+    "./transfer": {
+      "types": "./dist/transfer.d.ts",
+      "default": "./dist/transfer.js"
+    }
+  }
+}
