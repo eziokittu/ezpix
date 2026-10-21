@@ -1,4 +1,4 @@
-import { activeLayer, composite, type PixelDocument } from './document.js';
+import { rasterCel,activeLayer, composite, type PixelDocument } from './document.js';
 export type Point={x:number;y:number};
 export type Rect=Point&{width:number;height:number};
 export type Shape='Line'|'Rectangle'|'Ellipse';
@@ -22,7 +22,7 @@ export interface Selection {layerId:string;frameId:string;canvasWidth:number;can
 export type Transform={x:number;y:number;copy:boolean;flipX:boolean;flipY:boolean};
 export function captureSelection(doc:PixelDocument,rect:Rect):Selection {
   checkRect(rect,doc.width,doc.height);const layer=activeLayer(doc);if(!layer.visible)throw new Error('Show the selected layer before selecting pixels.');
-  return {layerId:layer.id,frameId:doc.activeFrameId,canvasWidth:doc.width,canvasHeight:doc.height,rect:{...rect},baseline:layer.pixels.slice()};
+  return {layerId:layer.id,frameId:doc.activeFrameId,canvasWidth:doc.width,canvasHeight:doc.height,rect:{...rect},baseline:rasterCel(doc,layer).slice()};
 }
 export function transformSelection(selection:Selection,options:Transform):Uint8ClampedArray {
   const {canvasWidth:w,canvasHeight:h,rect:r,baseline}=selection;

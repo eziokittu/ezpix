@@ -4,7 +4,7 @@ Read README.md and docs/extension-plan.md, plus the authoritative product spec
 and latest docs/ezpix-continueN.md in the sibling glitchbong checkout.
 
 - This is the separate EzPix extension/shared-core repository. Website UI lives
-  in glitchbong on its long-lived ezpix branch; this repo starts on main.
+  in glitchbong on its long-lived ezpix branch; this repo uses main.
 - No runtime AI: no inference, local models, AI SDKs, or generative redraw.
 - Authoritative algorithms and document/recipe schemas belong in packages/core.
   Both extension and website consume the same version. Do not duplicate them.
@@ -23,4 +23,4 @@ and latest docs/ezpix-continueN.md in the sibling glitchbong checkout.
 - Keep generated builds, dependencies, captures, credentials, and personal
   projects out of Git. Use original or explicitly licensed test fixtures.
 - Do not commit, push, create hosted repositories, or deploy unless authorised
-  by the user. This planning pass has no remote and no initial commit.
+  by the user.

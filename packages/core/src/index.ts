@@ -1,8 +1,24 @@
+import {prepareAdjustment,type AdjustmentPlan} from './adjustments.js';
+import {preparePaletteOperation,type PaletteOperationPlan} from './palette-organise.js';
+export * from './palette-organise.js';
+import {preparePaletteRamp,type PaletteRampPlan} from './palette-tools.js';
+export * from './palette-tools.js';
+export * from './adjustments.js';
+import {clipAppendPlan} from './clips.js';
+export * from './clips.js';
+import {prepareTranslation,type TranslationPlan} from './tween.js';
+export * from './tween.js';
+import {validateReferences,type ReferenceState,type ReferenceImage} from './references.js';
+export * from './references.js';
+import {validateTags,type AnimationTag} from './animation.js';
+export * from './animation.js';
+import {layerEditable,descendantLayers,groupAncestors,layerForest,validateGroups,MAX_GROUPS,type LayerGroup} from './groups.js';
+import {companionImportPlan} from './companion.js';
 import {finishPixels} from './quick.js';
 import { brushOffsets, type Brush } from './brush.js';
 export * from './brush.js';
 export * from './color.js';
-import { activeLayer, MAX_LAYERS, checkCelBudget,copyLayer,makeLayer,validateDuration, type Frame, type PixelDocument, type RGBA, type Layer } from './document.js';
+import { linkedFrames,ensureCel,rasterCel,compactCel,encodeProject,composite, activeLayer, MAX_LAYERS, checkCelBudget,copyLayer,makeLayer,validateDuration, type Frame, type PixelDocument, type RGBA, type Layer } from './document.js';
 import { shapePoints, transformSelection, validatePalette, type Shape, type Point, type Selection, type Transform } from './toolkit.js';
 export * from './document.js';
 export * from './conversion.js';
@@ -11,8 +27,8 @@ export * from './sheet.js';
 export * from './tiles.js';
 export * from './quick.js';
 export type Delta = { index: number; before: number[]; after: number[] };
-type LayerState = { layers: Layer[]; activeLayerId: string;frames:Frame[];activeFrameId:string };
-type Command = { bytes: number } & ({ kind:'pixels'; layerId:string;frameId:string; changes:Delta[] } | {kind:'bitmap';layerId:string;frameId:string;before:Uint8ClampedArray;after:Uint8ClampedArray} | {kind:'layers'; before:LayerState; after:LayerState}|{kind:'palette';before:string[];after:string[]});
+type LayerState = { layers: Layer[]; activeLayerId: string;frames:Frame[];activeFrameId:string;groups:LayerGroup[];tags:AnimationTag[] };
+type Command = { bytes: number } & ({kind:'references';before:ReferenceState;after:ReferenceState}|{ kind:'pixels'; layerId:string;frameId:string;frames:string[];buffer:Uint8ClampedArray;changes:Delta[] } | {kind:'bitmap';layerId:string;frameId:string;frames:string[];buffer:Uint8ClampedArray;before:Uint8ClampedArray;after:Uint8ClampedArray} | {kind:'layers'; before:LayerState; after:LayerState}|{kind:'palette';before:string[];after:string[]});
 /** A gesture is one command; one entry per changed pixel, including mirrored pixels. */
 export class PixelEditor {
   readonly document: PixelDocument;
@@ -25,29 +41,57 @@ export class PixelEditor {
   get canUndo() { return this.undoStack.length > 0; }
   get canRedo() { return this.redoStack.length > 0; }
   get historyBytes() { return this.bytes; }
+  private referenceState():ReferenceState {return {references:this.document.references.map(r=>({...r})),activeReferenceId:this.document.activeReferenceId};}
+  private changeReferences(after:ReferenceState){this.commit();validateReferences(after);const before=this.referenceState();if(before.activeReferenceId===after.activeReferenceId&&before.references.length===after.references.length&&before.references.every((r,i)=>r.id===after.references[i].id&&r.name===after.references[i].name&&r.pixels===after.references[i].pixels))return false;this.document.references=after.references;this.document.activeReferenceId=after.activeReferenceId;const buffers=new Set([...before.references,...after.references].map(r=>r.pixels));this.record({kind:'references',before,after,bytes:[...buffers].reduce((n,p)=>n+p.byteLength,0)+(before.references.length+after.references.length)*256});return true;}
+  addReference(image:Omit<ReferenceImage,'id'>){let n=1;while(this.document.references.some(r=>r.id===`reference-${n}`))n++;const id=`reference-${n}`,reference={...image,id,name:image.name.trim()};validateReferences({references:[...this.document.references,reference],activeReferenceId:id});return this.changeReferences({references:[...this.document.references,{...reference,pixels:reference.pixels.slice()}],activeReferenceId:id});}
+  selectReference(id:string){return this.changeReferences({references:this.document.references.slice(),activeReferenceId:id});}
+  renameReference(id:string,name:string){if(!this.document.references.some(r=>r.id===id))throw new Error('Reference image is missing.');return this.changeReferences({references:this.document.references.map(r=>r.id===id?{...r,name:name.trim()}:r),activeReferenceId:this.document.activeReferenceId});}
+  removeReference(id:string){if(!this.document.references.some(r=>r.id===id))throw new Error('Reference image is missing.');const references=this.document.references.filter(r=>r.id!==id);return this.changeReferences({references,activeReferenceId:this.document.activeReferenceId===id?references[0]?.id??null:this.document.activeReferenceId});}
   setPalette(colors:readonly string[]) {this.commit();const after=validatePalette(colors),before=this.document.palette.slice();if(before.join()===after.join())return false;this.document.palette=after;this.record({kind:'palette',before,after,bytes:(before.length+after.length)*64});return true;}
+  applyPaletteRamp(plan:PaletteRampPlan){this.commit();if(!plan||plan.baseline!==encodeProject(this.document,false))throw new Error('Ramp source changed. Prepare again.');return this.setPalette(preparePaletteRamp(this.document,plan.options).colors);}
+  applyPaletteOperation(plan:PaletteOperationPlan){this.commit();if(!plan||plan.baseline!==encodeProject(this.document,false))throw new Error('Palette source changed. Prepare again.');return this.setPalette(preparePaletteOperation(this.document,plan.options).colors);}
   shape(kind:Shape,a:Point,b:Point,color:RGBA,filled=false) {for(const p of shapePoints(kind,a,b,filled))this.paint(p.x,p.y,color);}
   applySelection(selection:Selection,options:Transform) {
     this.commit();const doc=this.document,layer=activeLayer(doc);
-    if(layer.id!==selection.layerId||doc.activeFrameId!==selection.frameId||!layer.visible||doc.width!==selection.canvasWidth||doc.height!==selection.canvasHeight||layer.pixels.length!==selection.baseline.length||!layer.pixels.every((v,i)=>v===selection.baseline[i]))throw new Error('The selected cel changed. Cancel and select its pixels again.');
-    const pixels=transformSelection(selection,options);
-    for(let p=0;p<pixels.length;p+=4)if(!pixels.subarray(p,p+4).every((v,i)=>v===layer.pixels[p+i]))this.paint(p/4%doc.width,Math.floor(p/4/doc.width),[pixels[p],pixels[p+1],pixels[p+2],pixels[p+3]]);
+    if(layer.id!==selection.layerId||doc.activeFrameId!==selection.frameId||!layerEditable(doc,layer)||doc.width!==selection.canvasWidth||doc.height!==selection.canvasHeight||rasterCel(doc,layer).length!==selection.baseline.length||!rasterCel(doc,layer).every((v,i)=>v===selection.baseline[i]))throw new Error('The selected cel changed. Cancel and select its pixels again.');
+    const pixels=transformSelection(selection,options),baseline=rasterCel(doc,layer);
+    for(let p=0;p<pixels.length;p+=4)if(!pixels.subarray(p,p+4).every((v,i)=>v===baseline[p+i]))this.paint(p/4%doc.width,Math.floor(p/4/doc.width),[pixels[p],pixels[p+1],pixels[p+2],pixels[p+3]]);
     return this.commit();
   }
-  finishArtwork(kind:'outline'|'speckles',color:RGBA) {this.commit();const doc=this.document,layer=activeLayer(doc);if(!layer.visible)throw new Error('Show the selected layer before finishing.');const next=finishPixels({width:doc.width,height:doc.height,pixels:layer.pixels},kind,color);for(let p=0;p<next.length;p+=4)if(next[p]!==layer.pixels[p]||next[p+1]!==layer.pixels[p+1]||next[p+2]!==layer.pixels[p+2]||next[p+3]!==layer.pixels[p+3])this.paint(p/4%doc.width,Math.floor(p/4/doc.width),[next[p],next[p+1],next[p+2],next[p+3]]);return this.commit();}
+  finishArtwork(kind:'outline'|'speckles',color:RGBA) {this.commit();const doc=this.document,layer=activeLayer(doc);if(!layerEditable(doc,layer))throw new Error('Show and unlock the selected layer before finishing.');const before=rasterCel(doc,layer),next=finishPixels({width:doc.width,height:doc.height,pixels:before},kind,color);for(let p=0;p<next.length;p+=4)if(next[p]!==before[p]||next[p+1]!==before[p+1]||next[p+2]!==before[p+2]||next[p+3]!==before[p+3])this.paint(p/4%doc.width,Math.floor(p/4/doc.width),[next[p],next[p+1],next[p+2],next[p+3]]);return this.commit();}
   selectLayer(id:string) { this.commit(); if(!this.document.layers.some(l=>l.id===id))throw new Error('Layer is missing.');this.document.activeLayerId=id; }
+  applyAdjustment(plan:AdjustmentPlan){this.commit();const doc=this.document;if(!plan||plan.baseline!==encodeProject(doc,false))throw new Error('Adjustment source changed. Prepare the preview again.');const fresh=prepareAdjustment(doc,plan.options);if(!fresh.changedPixels)return false;const layer=activeLayer(doc),before=rasterCel(doc,layer).slice(),frames=linkedFrames(doc,layer),buffer=ensureCel(doc,layer),after=fresh.pixels;buffer.set(after);this.record({kind:'bitmap',layerId:layer.id,frameId:doc.activeFrameId,frames,buffer,before,after,bytes:before.byteLength+after.byteLength+buffer.byteLength+256+frames.length*64});compactCel(layer,doc.activeFrameId);return true;}
+  importLayer(source:PixelDocument) {
+    const plan=companionImportPlan(this.document,source,'layer');
+    return this.changeLayers(()=>{const doc=this.document;let next=1;while(doc.layers.some(l=>l.id===`layer-${next}`))next++;const id=`layer-${next}`;
+      const cels=Object.fromEntries(doc.frames.map(f=>[f.id,f.id===doc.activeFrameId?plan.pixels!.slice():new Uint8ClampedArray(0)]));
+      doc.layers.splice(doc.layers.indexOf(activeLayer(doc))+1,0,makeLayer(doc,id,plan.name!,true,cels,{groupId:activeLayer(doc).groupId}));doc.activeLayerId=id;return true;});
+  }
   selectFrame(id:string) {this.commit();if(!this.document.frames.some(f=>f.id===id))throw new Error('Frame is missing.');this.document.activeFrameId=id;}
   addFrame(duplicate=false) {
     const doc=this.document;checkCelBudget(doc.width,doc.height,doc.layers.length,doc.frames.length+1);
     return this.changeLayers(()=>{let next=1;while(doc.frames.some(f=>f.id===`frame-${next}`))next++;const id=`frame-${next}`,index=doc.frames.findIndex(f=>f.id===doc.activeFrameId),current=doc.frames[index];
-      for(const layer of doc.layers)layer.cels[id]=duplicate?layer.pixels.slice():new Uint8ClampedArray(doc.width*doc.height*4);
-      doc.frames.splice(index+1,0,{id,duration:duplicate?current.duration:100});doc.activeFrameId=id;return true;});
+      for(const layer of doc.layers)layer.cels[id]=duplicate?layer.cels[doc.activeFrameId].slice():new Uint8ClampedArray(0);
+      doc.tags=doc.tags.map(t=>({...t,from:t.from>index?t.from+1:t.from,to:t.to>index?t.to+1:t.to}));doc.frames.splice(index+1,0,{id,duration:duplicate?current.duration:100});doc.activeFrameId=id;return true;});
   }
-  deleteFrame() {if(this.document.frames.length===1)throw new Error('Keep at least one frame.');return this.changeLayers(()=>{const doc=this.document,index=doc.frames.findIndex(f=>f.id===doc.activeFrameId);for(const l of doc.layers)delete l.cels[doc.activeFrameId];doc.frames.splice(index,1);doc.activeFrameId=doc.frames[Math.min(index,doc.frames.length-1)].id;return true;});}
+  deleteFrame() {if(this.document.frames.length===1)throw new Error('Keep at least one frame.');return this.changeLayers(()=>{const doc=this.document,index=doc.frames.findIndex(f=>f.id===doc.activeFrameId);for(const l of doc.layers)delete l.cels[doc.activeFrameId];doc.tags=doc.tags.filter(t=>t.from!==index||t.to!==index).map(t=>({...t,from:t.from>index?t.from-1:t.from,to:t.to>=index?t.to-1:t.to}));doc.frames.splice(index,1);doc.activeFrameId=doc.frames[Math.min(index,doc.frames.length-1)].id;return true;});}
   moveFrame(direction:1|-1) {return this.changeLayers(()=>{const doc=this.document,i=doc.frames.findIndex(f=>f.id===doc.activeFrameId),next=i+direction;if(next<0||next>=doc.frames.length)return false;[doc.frames[i],doc.frames[next]]=[doc.frames[next],doc.frames[i]];return true;});}
+  appendClip(text:string){this.commit();const doc=this.document,clip=clipAppendPlan(doc,text);return this.changeLayers(()=>{const start=doc.frames.length,used=new Set(doc.frames.map(f=>f.id));let n=1;const frames=clip.frames.map(f=>{while(used.has(`frame-${n}`))n++;const id=`frame-${n}`;used.add(id);return {id,duration:f.duration};});let layerNumber=1;while(doc.layers.some(l=>l.id===`layer-${layerNumber}`))layerNumber++;const cels:Record<string,Uint8ClampedArray>=Object.fromEntries(doc.frames.map(f=>[f.id,new Uint8ClampedArray(0)]));for(let i=0;i<frames.length;i++){const id=frames[i].id;cels[id]=clip.layers[0].cels[clip.frames[i].id].slice();for(const l of doc.layers)l.cels[id]=new Uint8ClampedArray(0);}const layer=makeLayer(doc,`layer-${layerNumber}`,clip.name,true,cels);doc.layers.push(layer);doc.frames.push(...frames);doc.activeLayerId=layer.id;doc.activeFrameId=frames[0].id;if(clip.tags.length){let number=1;while(doc.tags.some(t=>t.id===`tag-${number}`))number++;const source=clip.tags[0],base=source.name.slice(0,70);let name=source.name,suffix=2;while(doc.tags.some(t=>t.name.toLowerCase()===name.toLowerCase()))name=`${base} (${suffix++})`;doc.tags.push({id:`tag-${number}`,name,from:start,to:start+frames.length-1,mode:source.mode});}return true;});}
+  applyTranslation(plan:TranslationPlan){this.commit();const doc=this.document;if(!plan||plan.baseline!==encodeProject(doc,false))throw new Error('Tween source changed. Prepare the preview again.');const fresh=prepareTranslation(doc,plan.options);return this.changeLayers(()=>{const at=doc.frames.findIndex(f=>f.id===doc.activeFrameId),used=new Set(doc.frames.map(f=>f.id));let n=1;const frames=fresh.frames.map(cels=>{while(used.has(`frame-${n}`))n++;const id=`frame-${n}`;used.add(id);for(const layer of doc.layers)layer.cels[id]=cels[layer.id];return {id,duration:fresh.options.duration};});doc.tags=doc.tags.map(t=>({...t,from:t.from>at?t.from+frames.length:t.from,to:t.to>at?t.to+frames.length:t.to}));doc.frames.splice(at+1,0,...frames);doc.activeFrameId=frames.at(-1)!.id;return true;});}
+  clearCel(){this.commit();const doc=this.document,layer=activeLayer(doc);if(!layerEditable(doc,layer))throw new Error('Show and unlock the selected layer before clearing its cel.');if(!layer.cels[doc.activeFrameId].length)return false;const frames=linkedFrames(doc,layer);return this.changeLayers(()=>{const empty=new Uint8ClampedArray(0);for(const id of frames)layer.cels[id]=empty;return true;});}
+  linkCel(sourceFrameId:string){this.commit();const doc=this.document,layer=activeLayer(doc);if(!layerEditable(doc,layer))throw new Error('Show and unlock the selected layer before linking cels.');if(!doc.frames.some(f=>f.id===sourceFrameId))throw new Error('Source frame is missing.');if(layer.cels[doc.activeFrameId]===layer.cels[sourceFrameId])return false;return this.changeLayers(()=>{layer.cels[doc.activeFrameId]=layer.cels[sourceFrameId];return true;});}
+  unlinkCel(){this.commit();const doc=this.document,layer=activeLayer(doc);if(!layerEditable(doc,layer))throw new Error('Show and unlock the selected layer before unlinking cels.');if(linkedFrames(doc,layer).length<2)return false;return this.changeLayers(()=>{layer.cels[doc.activeFrameId]=layer.cels[doc.activeFrameId].slice();return true;});}
   setFrameDuration(duration:number) {validateDuration(duration);return this.changeLayers(()=>{const f=this.document.frames.find(f=>f.id===this.document.activeFrameId)!;if(f.duration===duration)return false;f.duration=duration;return true;});}
-  private layerState():LayerState {const doc=this.document;return {layers:doc.layers.map(l=>copyLayer(doc,l)),activeLayerId:doc.activeLayerId,frames:doc.frames.map(f=>({...f})),activeFrameId:doc.activeFrameId}; }
-  private restore(state:LayerState) {const doc=this.document;doc.frames=state.frames.map(f=>({...f}));doc.activeFrameId=state.activeFrameId;doc.layers=state.layers.map(l=>copyLayer(doc,l));doc.activeLayerId=state.activeLayerId; }
+  setTag(value:Omit<AnimationTag,'id'>,id?:string) {
+    const doc=this.document;if(id&&!doc.tags.some(t=>t.id===id))throw new Error('Tag is missing.');
+    let n=1;while(doc.tags.some(t=>t.id===`tag-${n}`))n++;const tag={...value,name:value.name.trim(),id:id??`tag-${n}`};
+    const tags=id?doc.tags.map(t=>t.id===id?tag:{...t}):[...doc.tags,tag];validateTags({...doc,tags});
+    if(JSON.stringify(tags)===JSON.stringify(doc.tags))return false;
+    return this.changeLayers(()=>{doc.tags=tags;return true;});
+  }
+  deleteTag(id:string) {if(!this.document.tags.some(t=>t.id===id))throw new Error('Tag is missing.');return this.changeLayers(()=>{this.document.tags=this.document.tags.filter(t=>t.id!==id);return true;});}
+  private layerState():LayerState {const doc=this.document;return {layers:doc.layers.map(l=>copyLayer(doc,l)),activeLayerId:doc.activeLayerId,frames:doc.frames.map(f=>({...f})),activeFrameId:doc.activeFrameId,groups:doc.groups.map(g=>({...g})),tags:doc.tags.map(t=>({...t}))}; }
+  private restore(state:LayerState) {const doc=this.document;doc.tags=state.tags.map(t=>({...t}));doc.groups=state.groups.map(g=>({...g}));doc.frames=state.frames.map(f=>({...f}));doc.activeFrameId=state.activeFrameId;doc.layers=state.layers.map(l=>copyLayer(doc,l));doc.activeLayerId=state.activeLayerId; }
   private record(command:Command) {
     this.bytes-=this.redoStack.reduce((n,c)=>n+c.bytes,0);this.redoStack=[];
     this.undoStack.push(command);this.bytes+=command.bytes;
@@ -57,24 +101,60 @@ export class PixelEditor {
     this.commit();const before=this.layerState();if(!change())return false;const after=this.layerState();
     // Snapshots share pixel buffers; budget counts every buffer retained by a command.
     const buffers=new Set([...before.layers,...after.layers].flatMap(l=>Object.values(l.cels)));
-    this.record({kind:'layers',before,after,bytes:[...buffers].reduce((n,p)=>n+p.byteLength,0)+(before.layers.length+after.layers.length+before.frames.length+after.frames.length)*256});return true;
+    this.record({kind:'layers',before,after,bytes:[...buffers].reduce((n,p)=>n+p.byteLength,0)+(before.layers.length+after.layers.length+before.frames.length+after.frames.length+before.groups.length+after.groups.length+before.tags.length+after.tags.length)*256});return true;
   }
   addLayer(duplicate=false) {
     if(this.document.layers.length>=MAX_LAYERS)throw new Error('A project supports at most 16 layers.');
     checkCelBudget(this.document.width,this.document.height,this.document.layers.length+1,this.document.frames.length);
     return this.changeLayers(()=>{const doc=this.document,current=activeLayer(doc);let next=1;while(doc.layers.some(l=>l.id===`layer-${next}`))next++;const id=`layer-${next}`;
-      const layer=makeLayer(doc,id,duplicate?`${current.name.slice(0,70)} copy`:`Layer ${doc.layers.length+1}`,true,Object.fromEntries(doc.frames.map(f=>[f.id,duplicate?current.cels[f.id].slice():new Uint8ClampedArray(doc.width*doc.height*4)])));
-      doc.layers.splice(doc.layers.indexOf(current)+1,0,layer);doc.activeLayerId=id;return true;});
+      const clones=new Map<Uint8ClampedArray,Uint8ClampedArray>();const clone=(p:Uint8ClampedArray)=>{if(!clones.has(p))clones.set(p,p.slice());return clones.get(p)!;};
+      const layer=makeLayer(doc,id,duplicate?`${current.name.slice(0,70)} copy`:`Layer ${doc.layers.length+1}`,true,Object.fromEntries(doc.frames.map(f=>[f.id,duplicate?clone(current.cels[f.id]):new Uint8ClampedArray(0)])));
+      doc.layers.splice(doc.layers.indexOf(current)+1,0,layer);doc.activeLayerId=id;layer.groupId=current.groupId;if(duplicate){layer.locked=current.locked;layer.opacity=current.opacity;}return true;});
   }
   deleteLayer() {
     if(this.document.layers.length===1)throw new Error('Keep at least one layer.');
-    return this.changeLayers(()=>{const doc=this.document,index=doc.layers.indexOf(activeLayer(doc));doc.layers.splice(index,1);doc.activeLayerId=doc.layers[Math.min(index,doc.layers.length-1)].id;return true;});
+    return this.groupOperation(doc=>{const index=doc.layers.findIndex(l=>l.id===doc.activeLayerId);doc.layers.splice(index,1);doc.activeLayerId=doc.layers[Math.min(index,doc.layers.length-1)].id;});
   }
   renameLayer(name:string) { const clean=name.trim();if(!clean||clean.length>80)throw new Error('Layer names need 1–80 characters.');return this.changeLayers(()=>{const layer=activeLayer(this.document);if(layer.name===clean)return false;layer.name=clean;return true;}); }
+  private groupOperation(change:(doc:PixelDocument)=>void){
+    this.commit();const doc=this.document,draft={...doc,layers:doc.layers.map(l=>copyLayer(doc,l)),groups:doc.groups.map(g=>({...g})),tags:doc.tags.map(t=>({...t}))};change(draft);validateGroups(draft);
+    return this.changeLayers(()=>{doc.layers=draft.layers.map(l=>copyLayer(doc,l));doc.groups=draft.groups.map(g=>({...g}));doc.activeLayerId=draft.activeLayerId;return true;});
+  }
+  createGroup(around=this.document.activeLayerId){
+    if(this.document.groups.length>=MAX_GROUPS)throw new Error('Projects support at most 16 groups.');
+    return this.groupOperation(doc=>{const layer=doc.layers.find(l=>l.id===around),group=doc.groups.find(g=>g.id===around);if(!layer&&!group)throw new Error('Choose a layer or group to wrap.');let n=1;while(doc.groups.some(g=>g.id===`group-${n}`))n++;const id=`group-${n}`,parentId=layer?layer.groupId:group!.parentId;doc.groups.push({id,name:`Group ${n}`,parentId,visible:true,locked:false,opacity:255});if(layer)layer.groupId=id;else group!.parentId=id;});
+  }
+  setGroupProperties(id:string,patch:Partial<Pick<LayerGroup,'name'|'visible'|'locked'|'opacity'>>){
+    if(Object.keys(patch).some(k=>!['name','visible','locked','opacity'].includes(k)))throw new Error('Unsupported group property.');
+    const group=this.document.groups.find(g=>g.id===id);if(!group)throw new Error('Group is missing.');if(Object.entries(patch).every(([k,v])=>group[k as keyof LayerGroup]===v))return false;
+    return this.groupOperation(doc=>Object.assign(doc.groups.find(g=>g.id===id)!,patch));
+  }
+  ungroup(id:string){return this.groupOperation(doc=>{const g=doc.groups.find(g=>g.id===id);if(!g)throw new Error('Group is missing.');if(!g.visible||g.locked||g.opacity!==255)throw new Error('Show, unlock and set group opacity to 100% before ungrouping.');for(const l of doc.layers)if(l.groupId===id)l.groupId=g.parentId;for(const child of doc.groups)if(child.parentId===id)child.parentId=g.parentId;doc.groups=doc.groups.filter(g=>g.id!==id);});}
+  deleteGroup(id:string){return this.groupOperation(doc=>{if(!doc.groups.some(g=>g.id===id))throw new Error('Group is missing.');const leaves=new Set(descendantLayers(doc,id).map(l=>l.id)),groups=new Set(doc.groups.filter(g=>groupAncestors(doc,g.id).some(a=>a.id===id)).map(g=>g.id));if(leaves.size===doc.layers.length)throw new Error('Keep at least one artwork layer.');doc.layers=doc.layers.filter(l=>!leaves.has(l.id));doc.groups=doc.groups.filter(g=>!groups.has(g.id));if(leaves.has(doc.activeLayerId))doc.activeLayerId=doc.layers.at(-1)!.id;});}
+  moveIntoGroup(nodeId:string,parentId:string|null){
+    const doc=this.document,layer=doc.layers.find(l=>l.id===nodeId),group=doc.groups.find(g=>g.id===nodeId);if(!layer&&!group)throw new Error('Layer or group is missing.');if((layer?layer.groupId:group!.parentId)===parentId)return false;
+    return this.groupOperation(draft=>{if(parentId!==null&&!draft.groups.some(g=>g.id===parentId))throw new Error('Destination group is missing.');if(group&&parentId!==null&&groupAncestors(draft,parentId).some(g=>g.id===nodeId))throw new Error('A group cannot contain itself or its descendants.');
+      const moving=layer?draft.layers.filter(l=>l.id===nodeId):descendantLayers(draft,nodeId),ids=new Set(moving.map(l=>l.id));draft.layers=draft.layers.filter(l=>!ids.has(l.id));
+      const at=parentId===null?draft.layers.length:Math.max(...descendantLayers(draft,parentId).map(l=>draft.layers.indexOf(l)))+1;
+      if(layer)moving[0].groupId=parentId;else draft.groups.find(g=>g.id===nodeId)!.parentId=parentId;draft.layers.splice(at,0,...moving);
+    });
+  }
+  moveNode(id:string,direction:1|-1){
+    const doc=this.document,layer=doc.layers.find(l=>l.id===id),group=doc.groups.find(g=>g.id===id);if(!layer&&!group)throw new Error('Layer or group is missing.');const siblings=layerForest(doc,layer?layer.groupId:group!.parentId),at=siblings.findIndex(n=>n.id===id),next=at+direction;if(next<0||next>=siblings.length)return false;
+    const a=siblings[at],b=siblings[next],leaves=(node:typeof a)=>node.group?descendantLayers(doc,node.id):doc.layers.filter(l=>l.id===node.id),one=leaves(a),two=leaves(b),start=Math.min(doc.layers.indexOf(one[0]),doc.layers.indexOf(two[0]));
+    return this.groupOperation(draft=>{const ids=new Map(draft.layers.map(l=>[l.id,l]));draft.layers.splice(start,one.length+two.length,...(direction===1?[...two,...one]:[...one,...two]).map(l=>ids.get(l.id)!));});
+  }
+  toggleLayerLock(){return this.changeLayers(()=>{const l=activeLayer(this.document);l.locked=!l.locked;return true;});}
+  setLayerOpacity(opacity:number){if(!Number.isInteger(opacity)||opacity<0||opacity>255)throw new Error('Opacity must be 0-255 whole units.');return this.changeLayers(()=>{const l=activeLayer(this.document);if(l.opacity===opacity)return false;l.opacity=opacity;return true;});}
+  mergeDown(){const doc=this.document,at=doc.layers.indexOf(activeLayer(doc)),top=doc.layers[at],bottom=doc.layers[at-1];
+    if(!bottom)throw new Error('Select a layer above another layer.');if(top.groupId!==bottom.groupId||!layerEditable(doc,top)||!layerEditable(doc,bottom))throw new Error('Show and unlock both layers before merging.');
+    const cels=Object.fromEntries(doc.frames.map(f=>[f.id,composite({...doc,layers:[bottom,top],groups:[]},f.id)]));
+    return this.changeLayers(()=>{doc.layers.splice(at-1,2,makeLayer(doc,bottom.id,bottom.name,true,cels,{groupId:bottom.groupId}));doc.activeLayerId=bottom.id;return true;});
+  }
   toggleLayer() {return this.changeLayers(()=>{const layer=activeLayer(this.document);layer.visible=!layer.visible;return true;});}
-  moveLayer(direction:1|-1) {return this.changeLayers(()=>{const doc=this.document,i=doc.layers.indexOf(activeLayer(doc)),next=i+direction;if(next<0||next>=doc.layers.length)return false;[doc.layers[i],doc.layers[next]]=[doc.layers[next],doc.layers[i]];return true;});}
+  moveLayer(direction:1|-1) {return this.moveNode(this.document.activeLayerId,direction);}
   paint(x: number, y: number, color: RGBA, mirrorX = false, mirrorY = false) {
-    if(!activeLayer(this.document).visible)return;
+    if(!layerEditable(this.document,activeLayer(this.document)))return;
     const { width, height } = this.document;
     for (const px of mirrorX ? [x, width - 1 - x] : [x]) {
       for (const py of mirrorY ? [y, height - 1 - y] : [y]) {
@@ -103,7 +183,7 @@ export class PixelEditor {
     }
   }
   fill(x: number, y: number, color: RGBA) {
-    if(!activeLayer(this.document).visible)return;
+    if(!layerEditable(this.document,activeLayer(this.document)))return;
     const { width, height, cel: { pixels } } = this.document;
     if (x < 0 || y < 0 || x >= width || y >= height) return;
     const target = pixels.slice((y * width + x) * 4, (y * width + x) * 4 + 4);
@@ -124,27 +204,31 @@ export class PixelEditor {
   commit() {
     const changes = [...this.pending.values()].filter(d => d.before.some((v, i) => v !== d.after[i]));
     this.pending.clear();
-    if (!changes.length) return false;
+    if (!changes.length){compactCel(activeLayer(this.document),this.document.activeFrameId);return false;}
     if(changes.length>1024&&changes.length*512>this.document.cel.pixels.byteLength*2+256){
       const after=this.document.cel.pixels.slice(),before=after.slice();for(const d of changes)before.set(d.before,d.index);
-      this.record({kind:'bitmap',layerId:this.document.activeLayerId,frameId:this.document.activeFrameId,before,after,bytes:before.byteLength+after.byteLength+256});
-    }else this.record({kind:'pixels',layerId:this.document.activeLayerId,frameId:this.document.activeFrameId,changes,bytes:changes.length*512});
-    return true;
+      this.record({kind:'bitmap',layerId:this.document.activeLayerId,frameId:this.document.activeFrameId,frames:linkedFrames(this.document,activeLayer(this.document)),buffer:this.document.cel.pixels,before,after,bytes:before.byteLength+after.byteLength+this.document.cel.pixels.byteLength+256+linkedFrames(this.document,activeLayer(this.document)).length*64});
+    }else this.record({kind:'pixels',layerId:this.document.activeLayerId,frameId:this.document.activeFrameId,frames:linkedFrames(this.document,activeLayer(this.document)),buffer:this.document.cel.pixels,changes,bytes:changes.length*512+this.document.cel.pixels.byteLength+linkedFrames(this.document,activeLayer(this.document)).length*64});
+    compactCel(activeLayer(this.document),this.document.activeFrameId);return true;
   }
   undo() {
     const command = this.undoStack.pop(); if (!command) return false;
-    if(command.kind==='palette')this.document.palette=command.before.slice();
+    if(command.kind==='references'){this.document.references=command.before.references.map(r=>({...r}));this.document.activeReferenceId=command.before.activeReferenceId;}
+    else if(command.kind==='palette')this.document.palette=command.before.slice();
     else if(command.kind==='layers')this.restore(command.before);
-    else if(command.kind==='bitmap'){const layer=this.document.layers.find(l=>l.id===command.layerId)!;this.document.activeLayerId=layer.id;this.document.activeFrameId=command.frameId;layer.pixels.set(command.before);}
-    else {const layer=this.document.layers.find(l=>l.id===command.layerId)!;this.document.activeLayerId=layer.id;this.document.activeFrameId=command.frameId;for(const d of command.changes)layer.pixels.set(d.before,d.index);}
+    else if(command.kind==='bitmap'){const layer=this.document.layers.find(l=>l.id===command.layerId)!;this.document.activeLayerId=layer.id;this.document.activeFrameId=command.frameId;for(const id of command.frames)layer.cels[id]=command.buffer;layer.pixels.set(command.before);}
+    else {const layer=this.document.layers.find(l=>l.id===command.layerId)!;this.document.activeLayerId=layer.id;this.document.activeFrameId=command.frameId;for(const id of command.frames)layer.cels[id]=command.buffer;for(const d of command.changes)layer.pixels.set(d.before,d.index);}
+    if(command.kind==='pixels'||command.kind==='bitmap')compactCel(activeLayer(this.document),this.document.activeFrameId);
     this.redoStack.push(command); return true;
   }
   redo() {
     const command = this.redoStack.pop(); if (!command) return false;
-    if(command.kind==='palette')this.document.palette=command.after.slice();
+    if(command.kind==='references'){this.document.references=command.after.references.map(r=>({...r}));this.document.activeReferenceId=command.after.activeReferenceId;}
+    else if(command.kind==='palette')this.document.palette=command.after.slice();
     else if(command.kind==='layers')this.restore(command.after);
-    else if(command.kind==='bitmap'){const layer=this.document.layers.find(l=>l.id===command.layerId)!;this.document.activeLayerId=layer.id;this.document.activeFrameId=command.frameId;layer.pixels.set(command.after);}
-    else {const layer=this.document.layers.find(l=>l.id===command.layerId)!;this.document.activeLayerId=layer.id;this.document.activeFrameId=command.frameId;for(const d of command.changes)layer.pixels.set(d.after,d.index);}
+    else if(command.kind==='bitmap'){const layer=this.document.layers.find(l=>l.id===command.layerId)!;this.document.activeLayerId=layer.id;this.document.activeFrameId=command.frameId;for(const id of command.frames)layer.cels[id]=command.buffer;layer.pixels.set(command.after);}
+    else {const layer=this.document.layers.find(l=>l.id===command.layerId)!;this.document.activeLayerId=layer.id;this.document.activeFrameId=command.frameId;for(const id of command.frames)layer.cels[id]=command.buffer;for(const d of command.changes)layer.pixels.set(d.after,d.index);}
+    if(command.kind==='pixels'||command.kind==='bitmap')compactCel(activeLayer(this.document),this.document.activeFrameId);
     this.undoStack.push(command); return true;
   }
 }
@@ -152,3 +236,11 @@ export class PixelEditor {
 export * from './native-aseprite.js';
 export * from './native-piskel.js';
 export {MAX_NATIVE_BYTES} from './native-utils.js';
+export * from './native-ora.js';
+export * from './native-psd.js';
+export * from './layer-exchange.js';
+
+export * from './companion.js';
+
+export * from './groups.js';
+export * from './palette-exchange.js';

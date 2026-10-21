@@ -1,0 +1,34 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {PixelEditor,createDocument,encodeProject,decodeProject,prepareAdjustment,adjustmentPreview,curveLookup,MAX_CURVE_POINTS,rasterCel,composite,encodeAseprite,decodeAseprite,encodePsd,decodePsd,encodeOra,decodeOra,convert,defaultRecipe,auditPalette,paletteRamp,preparePaletteRamp,levelsLookup,IDENTITY_LEVELS} from '../dist/index.js';
+
+
+const identity={...IDENTITY_LEVELS},levels={kind:'levels',inputBlack:10,inputWhite:240,gamma:1.7,outputBlack:5,outputWhite:245,channels:{red:{...identity,gamma:.5},green:identity,blue:{...identity,outputBlack:20,outputWhite:200}}};
+for(const options of [levels]){
+test(`${options.kind} copied settings, exact linked history, metadata and conversion-source retention`,()=>{
+ const source={width:3,height:1,pixels:new Uint8ClampedArray([12,34,56,255,70,80,90,255,5,6,7,255])},e=new PixelEditor(convert(source,defaultRecipe(source))),d=e.document;e.paint(0,0,[20,40,60,128]);e.paint(1,0,[7,8,9,0]);e.commit();e.addLayer();e.paint(2,0,[30,60,90,255]);e.commit();e.selectLayer('layer-1');e.createGroup();e.setGroupProperties('group-1',{opacity:200});e.addFrame();e.linkCel('frame-1');e.addFrame(true);e.selectFrame('frame-1');e.setTag({name:'Range',from:0,to:2,mode:'ping-pong'});e.addReference({name:'Study',width:1,height:1,pixels:new Uint8ClampedArray([2,4,6,255])});const before=encodeProject(d),independent=d.layers[0].cels['frame-3'].slice(),other=d.layers[1].cels['frame-1'].slice(),settings=structuredClone(options),plan=prepareAdjustment(d,settings);assert.equal(plan.linked,2);const expected=plan.pixels.slice();assert.deepEqual([...expected.slice(4,8)],[7,8,9,0]);assert.equal(encodeProject(d),before);assert.equal(adjustmentPreview(d,plan).length,d.width*d.height*4);settings.channels.red.gamma=1;assert.equal(plan.options.channels.red.gamma,.5);assert.ok(Object.isFrozen(plan.options.channels.red));assert.ok(Object.isFrozen(plan.options.channels));assert.ok(Object.isFrozen(plan.options));plan.pixels.fill(0);const history=e.historyBytes;e.applyAdjustment(plan);assert.ok(e.historyBytes>history);assert.deepEqual(rasterCel(d,d.layers[0]),expected);assert.equal(d.layers[0].cels['frame-1'],d.layers[0].cels['frame-2']);assert.deepEqual(d.layers[0].cels['frame-3'],independent);assert.deepEqual(d.layers[1].cels['frame-1'],other);assert.deepEqual(d.conversion.source.pixels,source.pixels);const after=encodeProject(d);assert.equal(encodeProject(decodeProject(after)),after);e.undo();assert.equal(encodeProject(d),before);e.redo();assert.equal(encodeProject(d),after);assert.throws(()=>e.applyAdjustment(plan),/changed/);e.clearCel();e.undo();e.undo();assert.equal(encodeProject(d),before);e.redo();assert.equal(encodeProject(d),after);
+});
+
+test(`${options.kind} baked native codec byte roundtrips`,async()=>{
+ const e=new PixelEditor(createDocument(3,1)),d=e.document;e.paint(0,0,[10,100,200,128]);e.paint(1,0,[7,8,9,0]);e.paint(2,0,[100,200,50,1]);e.commit();e.applyAdjustment(prepareAdjustment(d,options));const source=rasterCel(d,d.layers[0]);assert.equal(JSON.parse(encodeProject(d)).version,10);for(const back of [(await decodeAseprite(encodeAseprite(d))).document,decodePsd(encodePsd(d).bytes).document,(await decodeOra((await encodeOra(d)).bytes)).document]){assert.deepEqual(rasterCel(back,back.layers[0]),source);assert.deepEqual(composite(back),composite(d));}
+});
+
+}
+
+
+
+test('levels master-first order quantizes intermediate bytes; R/G/B independent, gamma and flat endpoints',()=>{
+ const e=new PixelEditor(createDocument(1,1)),d=e.document;e.paint(0,0,[20,100,200,128]);e.commit();const master=levelsLookup(levels),r=levelsLookup(levels.channels.red),b=levelsLookup(levels.channels.blue);assert.deepEqual([...prepareAdjustment(d,levels).pixels],[r[master[20]],master[100],b[master[200]],128]);assert.notEqual(r[master[20]],master[r[20]]);
+ assert.deepEqual(levelsLookup(identity),Array.from({length:256},(_,i)=>i));assert.equal(levelsLookup({...identity,gamma:2})[64],128);assert.equal(levelsLookup({...identity,inputBlack:20,inputWhite:220,outputBlack:10,outputWhite:240})[120],125);
+ for(const channel of ['red','green','blue']){const channels={red:identity,green:identity,blue:identity};channels[channel]={...identity,outputBlack:99,outputWhite:99};assert.deepEqual([...prepareAdjustment(d,{kind:'levels',...identity,channels}).pixels],[channel==='red'?99:20,channel==='green'?99:100,channel==='blue'?99:200,128]);}
+});
+test('channel levels reject every malformed setting and missing channel even on sparse cels without history/art mutation',()=>{
+ const e=new PixelEditor(createDocument(1,1)),d=e.document,before=encodeProject(d),bad=[null,{},[],{red:identity,green:identity},{red:null,green:identity,blue:identity}];for(const channels of bad)assert.throws(()=>prepareAdjustment(d,{kind:'levels',...identity,channels}));
+ for(const channel of ['red','green','blue'])for(const patch of [{inputBlack:255},{inputWhite:0},{inputBlack:-1},{inputWhite:256},{inputBlack:1.2},{outputBlack:200,outputWhite:199},{outputWhite:Infinity},{outputBlack:NaN},{gamma:0},{gamma:10.01},{gamma:NaN},{gamma:Infinity},{gamma:'1'}]){const channels={red:identity,green:identity,blue:identity};channels[channel]={...identity,...patch};assert.throws(()=>prepareAdjustment(d,{kind:'levels',...identity,channels}));}
+ assert.equal(encodeProject(d),before);assert.equal(e.canUndo,false);assert.equal(d.layers[0].cels['frame-1'].length,0);
+});
+test('neutral channel levels preserve every byte and sparse no-op; hidden/locked/stale reject; max history and eviction',()=>{
+ const empty=new PixelEditor(createDocument(1,1)),noop={kind:'levels',...identity,channels:{red:identity,green:identity,blue:identity}};assert.equal(empty.applyAdjustment(prepareAdjustment(empty.document,noop)),false);assert.equal(empty.canUndo,false);assert.equal(empty.document.layers[0].cels['frame-1'].length,0);
+ const e=new PixelEditor(createDocument(256,256)),d=e.document,p=rasterCel(d,d.layers[0]);for(let i=0;i<p.length;i+=4)p.set([64,128,192,128],i);p.set([7,8,9,0],0);d.layers[0].cels['frame-1']=p;assert.deepEqual(prepareAdjustment(d,noop).pixels,p);const before=encodeProject(d);e.applyAdjustment(prepareAdjustment(d,levels));assert.ok(e.historyBytes<=3*256*256*4+512);e.undo();assert.equal(encodeProject(d),before);const stale=prepareAdjustment(d,levels);e.renameLayer('Changed');assert.throws(()=>e.applyAdjustment(stale),/changed/);e.createGroup();e.setGroupProperties('group-1',{locked:true});assert.throws(()=>prepareAdjustment(d,levels),/unlock/);e.setGroupProperties('group-1',{locked:false,visible:false});assert.throws(()=>prepareAdjustment(d,levels),/unlock/);
+ const tiny=new PixelEditor(createDocument(1,1),1);tiny.paint(0,0,[64,128,192,128]);tiny.commit();tiny.applyAdjustment(prepareAdjustment(tiny.document,levels));assert.equal(tiny.historyBytes,0);assert.equal(tiny.canUndo,false);assert.equal(tiny.evicted,true);
+});

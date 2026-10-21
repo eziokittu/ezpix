@@ -1,3 +1,4 @@
+import {nearestPalettePixel,orderedPaletteOffset} from './palette-map.js';
 import { createDocument, type PixelDocument } from './document.js';
 export interface Raster { width: number; height: number; pixels: Uint8ClampedArray }
 export interface Recipe {
@@ -58,7 +59,7 @@ export function extractPalette(pixels: Uint8ClampedArray, limit: number): Color[
 }
 const POCKET: Color[] = [[15, 56, 15], [48, 98, 48], [139, 172, 15], [155, 188, 15]];
 const NEON: Color[] = [[10, 0, 8], [57, 255, 20], [168, 85, 247], [255, 215, 0], [240, 230, 255], [255, 100, 124], [73, 191, 255], [96, 66, 166]];
-const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+
 export function convert(source: Raster, recipe: Recipe): PixelDocument {
   validateRaster(source); validateRecipe(recipe, source);
   const doc = createDocument(recipe.width, recipe.height, 'Converted artwork'), out = doc.cel.pixels, crop = recipe.crop;
@@ -87,10 +88,8 @@ export function convert(source: Raster, recipe: Recipe): PixelDocument {
     const palette = recipe.palette === 'pocket' ? POCKET : recipe.palette === 'neon' ? NEON : extractPalette(out, recipe.colors);
     for (let i = 0; i < out.length; i += 4) {
       if (!out[i + 3]) continue;
-      const x = i / 4 % doc.width, y = Math.floor(i / 4 / doc.width), offset = recipe.dither ? (BAYER[(y % 4) * 4 + x % 4] - 7.5) * 4 : 0;
-      let best = palette[0], distance = Infinity;
-      for (const p of palette) { const dr=out[i]+offset-p[0],dg=out[i+1]+offset-p[1],db=out[i+2]+offset-p[2],d=dr*dr+dg*dg+db*db; if (d < distance) { distance = d; best = p; } }
-      out.set(best, i);
+      const x=i/4%doc.width,y=Math.floor(i/4/doc.width);
+      out.set(nearestPalettePixel([out[i],out[i+1],out[i+2]],palette,recipe.dither?orderedPaletteOffset(x,y,100):0),i);
     }
   }
   doc.conversion = { source, recipe: structuredClone(recipe) }; return doc;

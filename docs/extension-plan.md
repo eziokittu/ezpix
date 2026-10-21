@@ -1,96 +1,79 @@
-# EzPix extension implementation map
+# EzPix Chrome companion architecture
 
-2026-10-21: extension 0.11.0 uses core 0.11.0 and opens `/tools/ezpix` directly. Exact root and
-legacy editor paths are authorized; help/other subroutes remain denied. The
-website shell correction and remaining migration/capture integration work are
-recorded in continuation 18 and the correction roadmap. Release work is deferred.
+Current: core/extension **0.32.0**, project v10 writer / v1-v10 readers.
+Read [the current handoff](../../glitchbong/docs/ezpix-continue42.md),
+[product spec](../../glitchbong/docs/ezpix-spec.md) and [core reference](../packages/core/README.md).
+Website UI belongs to sibling `glitchbong` on `ezpix`; this repository uses `main`.
 
-2026-10-19: phases 2 and 3 implemented locally. Read the authoritative
-[specification](../../glitchbong/docs/ezpix-spec.md) and latest
-[handoff](../../glitchbong/docs/ezpix-continue18.md).
+## Capture and local conversion
 
-## Implemented architecture
+Manifest V3, minimum Chrome 120. Explicit toolbar action opens region/element/
+visible-viewport capture. The isolated selector supports Escape, clips to the
+viewport and removes its overlay before capture. Background verifies active tab,
+document, viewport/scroll/DPR around the screenshot; cropping uses actual image
+dimensions. Full screenshots cap at 16 megapixels and retained crops at four.
+Iframe-containing pages are visible-pixel capture; parent hit testing must not
+inspect cross-origin DOM or bypass access controls. Navigation, moved/closed tabs
+or protected pages fail with a useful error rather than broaden access.
 
-Manifest V3, minimum Chrome 120. Popup invokes region/element/visible capture.
-An isolated injected selector clips to the viewport, supports Esc and removes
-its overlay before capture. The background verifies document, active tab and
-viewport/scroll/DPR around the screenshot. Cropping uses actual screenshot
-dimensions. Full screenshots are bounded to 16 MP; retained crops to 4 MP.
-No arbitrary remote image proxy or full-desktop capture is implemented.
+The extension tab bundles the matching shared converter and worker. Source crop,
+size, sampling, palette and dither tuning stay local. PNG/project downloads work
+without the website. Optional source inclusion retains the entire source image,
+including outside the crop. Manual edits remain a separate editor workflow.
 
-The extension tab uses the core 0.11.0 converter and worker. PNG/project downloads
-are available without the website. Source inclusion is explicit: it retains the
-entire imported image, including pixels outside the conversion crop.
+Permissions are exactly `activeTab` for explicit visible capture, `scripting` for
+selector/viewport checks, and `alarms` for expiry cleanup. IndexedDB holds bounded
+capture/selection/transfer state; there is no storage/sync or blanket host grant.
+No runtime AI, account, upload, clipboard or arbitrary desktop capture is needed.
+Artwork, names, palettes, source URLs, reference/clip content must not enter logs
+or analytics. Website traffic collection must not be confused with image upload.
 
-Permissions: activeTab for user-invoked visible capture, scripting for selector
-and viewport validation, alarms for expiry cleanup. IndexedDB stores capture,
-selection and transfer state; there is no storage/sync or blanket host permission.
-User images, project names and source URLs do not enter analytics or logs.
+## Configured discovery and handoff
 
-## Local website handoff
+Production targets `https://glitchbong.com`; development targets localhost:3791.
+The help/setup flow accepts and validates an extension ID and supports configured
+discovery/absent/error states. The website cannot capture another tab or grant
+activeTab. The actual toolbar action is required for capture verification.
 
-Externally connectable messaging is scoped to the website; runtime authorization
-also checks exact origin, the exact `/tools/ezpix` or legacy `/tools/ezpix/editor` path, top frame, destination tab,
-random token, protocol and expiry. Only a fragment token and extension ID enter
-the URL. Payloads use 128 KiB raw/base64 chunks, a 16 MiB total cap, engine/version
-checks and SHA-256 validation before project decode. The website receives into
-staging and replaces artwork only on explicit import, warning for unsaved edits.
+External messaging is origin, exact editor route, top-frame, tab, random token,
+protocol, engine and expiry bound. Authorized routes are `/tools/ezpix` and legacy
+`/tools/ezpix/editor`; help/other paths are denied. Only fragment token/extension
+ID appear in URLs, never artwork or project-specific query strings.
+Protocol 1 uses 128 KiB raw/base64 chunks, a 16 MiB total cap, engine equality
+and SHA-256 validation before decode. Stage and review all received data.
 
-Transfer state survives service-worker suspension. ACK removes payload bytes,
-keeps an idempotent receipt until expiry and is sent after accepted import.
-Closing the destination tab invalidates its transfer. Capture/selection/transfer
-records expire after 10 minutes. Clear removes retained extension data. Existing
-pixels in open converter/editor tabs remain until replaced or closed.
+The destination choices are new document, matching-canvas new layer, palette
+append or persistent reference. Explicit confirmation and dirty/pending-preview
+guards protect manual art. Source/destination budgets and format validation run
+before mutation. Palette edits do not recolour artwork. References are display-
+only and persist in v10. Wrong canvas or count/budget rejection keeps current art.
 
-One pending handoff is retained: opening another invalidates the old pending
-token. There is no background sync, collaborative editing or reverse web bridge.
-Project-file export/import is the fallback. Browser and extension preferences
-are local and independent; both offer GlitchBong System/Dark/Light colours.
+Transfer state survives worker suspension. ACK follows accepted import, removes
+payload bytes and retains an idempotent receipt until expiry. Closing destination
+invalidates its transfer. Only one pending handoff is retained; opening another
+invalidates its old token. Capture/selection/transfer records expire after ten
+minutes. Clear removes retained extension records; already open converter/editor
+pixels last until replaced or closed. Files are independent backups. There is
+no reverse bridge, background sync or collaborative editing.
 
-## Evidence and remaining gates
+## Build and verification
 
-The production Next build, 41 engine/protocol/navigation tests, lint and route policy checks
-pass. Actual unpacked-Chrome region/element capture and website messaging pass,
-including exact fixture pixels, wrong tab/token, worker stop/restart, import
-cancellation and ACK retry. See the handoff for exact evidence and commands.
+`npm run build:extension` builds production and development folders. Reload the
+matching unpacked extension after core changes. Website consumes a versioned
+vendor tarball with lock/provenance agreement, never sibling source imports.
+Both variants keep identical minimal permissions. Browser preferences/themes
+are local and independent; both expose Light/Dark/System.
 
-Phase 7a adds real zoom/scroll/clipped/iframe/restricted-page/navigation capture
-checks, native Chrome/Edge visibility checks, fresh npm-ci and configured builds,
-and a bounded browser process-memory/input stress run. Selection now intercepts
-pointer events above embedded frames; element hit testing still uses the parent
-document and captures visible pixels only. Extension 0.9.1 uses shared core 0.9.0.
+`phase23-e2e` verifies real toolbar activeTab capture, fixture pixels, wrong-tab/
+token rejection, worker restart, transfer/ACK, import cancellation/preservation,
+configured discovery and all destinations on the rebuilt package. Keep isolated
+harness evidence separate from the production website. Current tests, artifact
+locations and sequential reproduction are in the handoff. Additional capture,
+soak and isolated-install scripts remain available; prior five-minute stress
+runs do not establish endurance or minimum-device latency.
 
-Still required before release: longer endurance and true peak/VRAM measurements,
-Firefox/Safari and broader real-page capture coverage, physical
-touch/stylus checks, product/dependency licence review,
-packaged release review, deployment and store submission. Successful local QA
-does not establish those gates. Palette grab, references as layers, recipe import,
-desktop capture remain proposals. Sprite slicing is available on the website.
-
-## Website toolkit update
-
-Core 0.11.0 writes multi-frame layered project v4 and reads v1/v2/v3. The companion continues
-to create a single-layer conversion; website import and retained-source tuning
-remain explicit replacements. The website provides layer editing and bounded
-local recovery, not background extension-to-web sync. Rebuild both surfaces
-after a core bump because the transfer validates matching engine versions.
-
-Current continuation 11 adds shared quick conversion presets, transparent-margin
-trimming, cached source thumbnails and reusable idle conversion workers. Busy
-work is still terminated on cancellation/replacement. Sprite finishing is
-undoable and layer/frame scoped. The website has a separate tiles/map workspace
-with .eztiles files, independent recovery, exact deduplication and starter
-patterns. Maps do not change sprite v4 files. See the latest handoff for bounds,
-measured performance and remaining release gates. No permissions or uploads added.
-
-Handoff initialization now uses an active extension-owned holding page and waits
-for complete initialization before persisting the transfer and navigating the
-same bound tab. Closed/timeout cases preserve the file-download fallback. This
-avoids racing an uninitialized inactive blank tab; repeated local capture checks
-pass, while the broader navigation matrix remains a release gate. No permissions
-or origin/token/tab checks were broadened.
-
-Phase 8b: shared core 0.11.0 adds bounded Aseprite/Piskel codecs. Their native
-import/export UI is on the website; the extension remains the capture/conversion
-companion with the same minimal permissions. Reload the rebuilt unpacked 0.11.0
-extension for engine-matched handoffs. See continuation 18 for exclusions and QA.
+[Release verification](release-verification.md) keeps physical Android/iOS/
+stylus, non-Chromium browsers, manual external editors, broader real pages,
+endurance, true peak RAM/VRAM, hosted/offline behavior, packaging/licence/name
+and store approval open. Local commits are authorized by the owner's cleanup
+request; push, hosting/deployment and store publication require new authorization.

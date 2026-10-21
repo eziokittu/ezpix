@@ -1,5 +1,9 @@
 import { CHUNK_BYTES, TRANSFER_LIMIT } from '../packages/core/dist/transfer.js';
 export { CHUNK_BYTES, TRANSFER_LIMIT };
+export function authorizeDiscovery(message,sender,origin){
+ let url;try{url=new URL(sender.url);}catch{throw new Error('Discovery denied.');}
+ if(message?.op!=='discover'||message.protocol!==1||sender.frameId!==0||!Number.isInteger(sender.tab?.id)||url.origin!==origin||!['/tools/ezpix','/tools/ezpix/editor','/tools/ezpix/help'].includes(url.pathname))throw new Error('Discovery denied.');
+}
 export function authorize(record,message,sender,origin,now=Date.now()) {
   if (!record || !message || message.protocol!==1 || typeof message.token!=='string' || message.token!==record.token || record.expires<=now || sender.tab?.id!==record.tabId || sender.frameId!==0) throw new Error('Transfer denied.');
   let url; try { url=new URL(sender.url); } catch { throw new Error('Transfer denied.'); }

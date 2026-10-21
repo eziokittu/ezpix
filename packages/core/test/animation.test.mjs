@@ -14,12 +14,12 @@ test('frame deletion, order, duration and global layer edits round-trip through 
 });
 test('dense cel allocation is bounded before adding frames/layers',()=>{
   const tiny=new PixelEditor(createDocument(1,1));while(tiny.document.frames.length<MAX_FRAMES)tiny.addFrame();assert.throws(()=>tiny.addFrame());
-  const big=new PixelEditor(createDocument(256,256));while(big.document.frames.length<16)big.addFrame();const before=encodeProject(big.document);assert.throws(()=>big.addFrame(),/budget/);assert.throws(()=>big.addLayer(),/budget/);assert.equal(encodeProject(big.document),before);assert.equal(big.document.layers.reduce((n,l)=>n+Object.values(l.cels).reduce((m,p)=>m+p.byteLength,0),0),MAX_CEL_BYTES);
+  const big=new PixelEditor(createDocument(256,256));while(big.document.frames.length<16)big.addFrame();const before=encodeProject(big.document);assert.throws(()=>big.addFrame(),/budget/);assert.throws(()=>big.addLayer(),/budget/);assert.equal(encodeProject(big.document),before);assert.equal(big.document.layers.reduce((n,l)=>n+Object.values(l.cels).reduce((m,p)=>m+p.byteLength,0),0),0);
 });
 test('v4 rejects hostile frame/cel schemas and migrates real layered v3 source/palette projects',()=>{
   const source={width:1,height:1,pixels:new Uint8ClampedArray([23,45,67,128])},e=new PixelEditor(convert(source,{...defaultRecipe(source),width:1,height:1}));e.addLayer(true);e.setPalette(['#abcdef']);
   const old=JSON.parse(encodeProject(e.document));old.version=3;old.layers=old.layers.map(l=>({id:l.id,name:l.name,visible:l.visible,rgba:l.cels[0].rgba}));delete old.frames;delete old.activeFrameId;
-  const migrated=decodeProject(JSON.stringify(old));assert.deepEqual(migrated,e.document);assert.equal(JSON.parse(encodeProject(migrated)).version,4);
+  const migrated=decodeProject(JSON.stringify(old));assert.deepEqual(migrated,e.document);assert.equal(JSON.parse(encodeProject(migrated)).version,10);
   e.addFrame(true);const good=JSON.parse(encodeProject(e.document)),layer=good.layers[0];
   for(const patch of [{frames:[]},{frames:Array(33).fill(good.frames[0])},{frames:[good.frames[0],good.frames[0]]},{frames:[{id:'frame-1',duration:0}]},{activeFrameId:'missing'},{layers:[{...layer,cels:[]}]},{layers:[{...layer,cels:[layer.cels[0],layer.cels[0]]}]},{width:256,height:256,layers:Array.from({length:16},(_,i)=>({...layer,id:`layer-${i+1}`}))}])assert.throws(()=>decodeProject(JSON.stringify({...good,...patch})));
 });

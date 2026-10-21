@@ -1,0 +1,11 @@
+import {PixelEditor,createDocument,prepareAdjustment,rasterCel} from '../packages/core/dist/index.js';
+import {mkdir,writeFile} from 'node:fs/promises';
+import {execFileSync} from 'node:child_process';
+import {resolve} from 'node:path';
+import assert from 'node:assert/strict';
+const levels=process.argv.includes('--levels'),out=resolve(`artifacts/phase12${levels?'b':'a'}`);await mkdir(out,{recursive:true});const e=new PixelEditor(createDocument(256,2)),d=e.document;
+for(let x=0;x<256;x++){e.paint(x,0,[x,(x*73)%256,255-x,[0,1,128,255][x%4]]);e.paint(x,1,[x,x,x,255]);}e.commit();
+const options=[];if(levels){for(const gamma of [.1,.5,1,2,10])for(const bounds of [[0,255,0,255],[20,220,10,240],[127,128,80,180],[0,255,100,100]])options.push({kind:'levels',inputBlack:bounds[0],inputWhite:bounds[1],gamma,outputBlack:bounds[2],outputWhite:bounds[3]});}else for(const hue of [-180,-121,0,37,120,180])for(const saturation of [-100,0,39,100])for(const lightness of [-100,-17,0,26,100])options.push({kind:'hsl',hue,saturation,lightness});
+const studies=options.map(options=>({options,pixels:[...rasterCel(d,d.layers[0])]})),path=resolve(out,'numerical-fixtures.json');await writeFile(path,JSON.stringify(studies));const expected=JSON.parse(execFileSync('python',['scripts/phase12ab-reference.py',path],{encoding:'utf8',windowsHide:true,maxBuffer:8*1024*1024}));
+let ties=0;for(let n=0;n<options.length;n++)assert.deepEqual([...prepareAdjustment(d,options[n]).pixels],expected[n],`study ${n}`);
+await writeFile(resolve(out,'independent-result.json'),JSON.stringify({status:'passed',studies:options.length,pixels:options.length*512,oneByteRoundingDisagreements:ties},null,2));console.log(`PASS independent ${levels?'levels':'HSL'}: ${options.length} studies, ${ties} one-byte rounding disagreements`);

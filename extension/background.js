@@ -1,7 +1,7 @@
 import {waitForTabReady} from './navigation.js';
 import { state, purgeExpired, updateState } from './db.js';
 import { selectOnPage } from './selector.js';
-import { authorize, responseFor, TRANSFER_LIMIT } from './protocol.js';
+import { authorize, authorizeDiscovery, responseFor, TRANSFER_LIMIT } from './protocol.js';
 import { decodeProject, ENGINE_VERSION } from '../packages/core/dist/index.js';
 import { imageDimensions } from '../packages/core/dist/browser.js';
 import { WEBSITE_ORIGIN } from './config.js';
@@ -80,6 +80,7 @@ chrome.runtime.onMessage.addListener((message,sender,reply)=>{
 });
 chrome.runtime.onMessageExternal.addListener((message,sender,reply)=>{
   (async()=>{
+    if(message?.op==='discover'){authorizeDiscovery(message,sender,WEBSITE_ORIGIN);return {protocol:1,engine:ENGINE_VERSION,status:'available'};}
     await purgeExpired();const record=await state('transfer');authorize(record,message,sender,WEBSITE_ORIGIN);
     const response=responseFor(record,message);
     if(message.op==='ack')await updateState('transfer',current=>{authorize(current,message,sender,WEBSITE_ORIGIN);responseFor(current,message);const receipt={...current,acked:true};delete receipt.bytes;return receipt;});

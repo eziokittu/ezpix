@@ -1,9 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { authorize, responseFor } from '../protocol.js';
+import { authorize, authorizeDiscovery, responseFor } from '../protocol.js';
 import { receiveProject } from '../../packages/core/dist/transfer.js';
 import { createDocument, encodeProject, ENGINE_VERSION } from '../../packages/core/dist/index.js';
 const origin='http://localhost:3791', sender={tab:{id:4},frameId:0,url:origin+'/tools/ezpix/editor'}, message={op:'manifest',token:'secret',protocol:1};
+test('discovery returns no transfer data and requires exact origin, allowed page and top frame',()=>{const request={op:'discover',protocol:1};authorizeDiscovery(request,sender,origin);authorizeDiscovery(request,{...sender,url:origin+'/tools/ezpix/help'},origin);for(const bad of [{...sender,frameId:1},{...sender,url:origin+'/tools/other'},{...sender,url:'https://invalid/tools/ezpix'},{...sender,tab:undefined}])assert.throws(()=>authorizeDiscovery(request,bad,origin));assert.throws(()=>authorizeDiscovery({...request,protocol:2},sender,origin));assert.throws(()=>authorize(null,request,sender,origin));});
 test('bind transfer to origin, exact path, tab, top frame, token and expiry',()=>{
   const record={token:'secret',tabId:4,origin,expires:2000};
   authorize(record,message,sender,origin,1000);

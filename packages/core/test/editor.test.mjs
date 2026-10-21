@@ -28,10 +28,10 @@ test('limits and hostile files fail before cel allocation', () => {
   for (const pixels of [[0], [0,0,0,256], [0,0,0,1.1], ['0',0,0,0]]) assert.throws(() => decodeProject(JSON.stringify({ ...valid, version:2, pixels })));
 });
 test('history eviction, no-op gestures and branching keep current artwork', () => {
-  const editor = new PixelEditor(createDocument(4, 4), 512);
+  const editor = new PixelEditor(createDocument(4, 4), 640);
   editor.paint(0, 0, red); editor.commit();
   editor.paint(1, 0, red); editor.commit();
-  assert.equal(editor.evicted, true); assert.equal(editor.historyBytes, 512);
+  assert.equal(editor.evicted, true); assert.equal(editor.historyBytes, 640);
   editor.undo(); assert.equal(editor.document.cel.pixels[3], 255);
   editor.paint(2, 0, red); editor.commit(); assert.equal(editor.canRedo, false);
   editor.paint(2, 0, red); assert.equal(editor.commit(), false);

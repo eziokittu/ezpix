@@ -19,7 +19,7 @@ test('delete/duplicate/rename/reorder undo restores exact layers and pixels acro
 test('layered projects and conversion survive round trip; v1/v2 migrate and hostile metadata is rejected',()=>{
   const e=new PixelEditor(createDocument(2,1));e.addLayer();e.renameLayer('Light');e.toggleLayer();
   const text=encodeProject(e.document);assert.deepEqual(decodeProject(text),e.document);
-  for(const version of [1,2]){const old=decodeProject(JSON.stringify({format:'ezpix',version,width:1,height:1,name:'Old',pixels:[1,2,3,255]}));assert.deepEqual([...composite(old)],[1,2,3,255]);assert.equal(JSON.parse(encodeProject(old)).version,4);}
+  for(const version of [1,2]){const old=decodeProject(JSON.stringify({format:'ezpix',version,width:1,height:1,name:'Old',pixels:[1,2,3,255]}));assert.deepEqual([...composite(old)],[1,2,3,255]);assert.equal(JSON.parse(encodeProject(old)).version,10);}
   const good=JSON.parse(text);
   for(const patch of [{layers:[]},{layers:Array(MAX_LAYERS+1).fill(good.layers[0])},{activeLayerId:'missing'},{layers:[good.layers[0],good.layers[0]]},{layers:[{...good.layers[0],visible:1}]},{layers:[{...good.layers[0],cels:[{frameId:'frame-1',rgba:'AA=='}]}]}])assert.throws(()=>decodeProject(JSON.stringify({...good,...patch})));
   while(e.document.layers.length<MAX_LAYERS)e.addLayer();assert.throws(()=>e.addLayer());

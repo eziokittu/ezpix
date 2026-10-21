@@ -1,7 +1,7 @@
 # EzPix remaining release verification worksheet
 
-Local phase 7a evidence is in
-[continuation 12](../../glitchbong/docs/ezpix-continue12.md). This worksheet records
+Current local evidence is in
+[continuation 42](../../glitchbong/docs/ezpix-continue42.md). This worksheet records
 remaining manual gates; its presence does not mean any row passed. Use original
 fixtures, keep captures local, and record actual hardware, OS/browser versions,
 date, result and artifact location for each run. Never attach personal artwork,
@@ -33,3 +33,16 @@ Repeat local automated checks sequentially after the production website build:
 five-minute-per-surface `phase7a-soak.mjs` and `summarize-soak.mjs`. Keep CPU-heavy
 builds and other browser suites out of timing runs. Do not overwrite the older
 0.7.0 baseline with a current build and label it historical evidence.
+
+
+## Current local evidence
+
+Core/extension 0.32.0 writes v10 and reads v1-v10. Latest implementation verification:
+145 core/protocol tests, independent numerical/native checks, production TypeScript
+and 1,245-page build, 62 ad-route checks, staged browser downloads/recovery and real
+unpacked-extension capture/handoff. Full details and ignored artifact locations are
+in the current handoff. These checks do not close any unperformed gate in the table.
+The progress estimate is a planning range, not a release-readiness score.
+
+The owner authorized documentation cleanup and local commits only. Push, hosted
+repository creation, deployment and store submission require separate authorization.

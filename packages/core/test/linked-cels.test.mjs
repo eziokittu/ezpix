@@ -1,0 +1,25 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {PixelEditor,createDocument,encodeProject,decodeProject,composite,linkedFrames,celAllocation,hasLinkedCels,encodeAseprite,decodeAseprite,encodePiskel,decodePiskel,encodePsd} from '../dist/index.js';
+function fixture(){const e=new PixelEditor(createDocument(2,2));e.addFrame();e.addFrame();e.setTag({name:'All',from:0,to:2,mode:'ping-pong'});return e;}
+test('explicit empty links allocate together, share edits and compact together through undo/redo',()=>{
+ const e=fixture(),d=e.document;e.linkCel('frame-1');assert.deepEqual(linkedFrames(d,d.layers[0]),['frame-1','frame-3']);assert.equal(celAllocation(d).bytes,0);assert.ok(hasLinkedCels(d));const empty=encodeProject(d);
+ e.paint(1,1,[7,8,9,0]);e.commit();assert.equal(celAllocation(d).bytes,16);assert.equal(d.layers[0].cels['frame-1'],d.layers[0].cels['frame-3']);assert.deepEqual([...d.layers[0].cels['frame-1'].slice(12)],[7,8,9,0]);e.undo();assert.equal(encodeProject(d),empty);assert.equal(celAllocation(d).bytes,0);e.redo();assert.deepEqual([...d.layers[0].cels['frame-3'].slice(12)],[7,8,9,0]);
+ const filled=encodeProject(d);e.clearCel();assert.equal(celAllocation(d).bytes,0);assert.deepEqual(linkedFrames(d,d.layers[0]),['frame-1','frame-3']);e.undo();assert.equal(encodeProject(d),filled);e.redo();e.undo();e.unlinkCel();assert.equal(hasLinkedCels(d),false);e.paint(0,0,[1,2,3,255]);e.commit();assert.equal(d.layers[0].cels['frame-1'][3],0);e.undo();e.undo();assert.equal(encodeProject(d),filled);
+});
+test('reorder/delete/duplicate/layer-copy and structural history preserve or detach links explicitly',()=>{
+ const e=fixture(),d=e.document;e.selectFrame('frame-1');e.paint(0,0,[255,0,0,255]);e.commit();e.selectFrame('frame-2');e.linkCel('frame-1');e.selectFrame('frame-3');e.linkCel('frame-1');e.createGroup();const before=encodeProject(d);
+ e.moveFrame(-1);assert.equal(new Set(Object.values(d.layers[0].cels)).size,1);assert.ok(JSON.parse(encodeProject(d)).layers[0].cels[1].link);e.undo();e.selectFrame('frame-1');e.deleteFrame();assert.equal(d.layers[0].cels['frame-2'],d.layers[0].cels['frame-3']);assert.deepEqual([...composite(d).slice(0,4)],[255,0,0,255]);e.undo();e.selectFrame('frame-3');assert.equal(encodeProject(d),before);
+ e.addFrame(true);assert.notEqual(d.layers[0].cels[d.activeFrameId],d.layers[0].cels['frame-1']);e.undo();e.addLayer(true);assert.equal(d.layers[1].cels['frame-1'],d.layers[1].cels['frame-3']);assert.notEqual(d.layers[0].cels['frame-1'],d.layers[1].cels['frame-1']);e.undo();assert.equal(encodeProject(d),before);
+ e.paint(1,1,[0,0,255,255]);e.commit();e.addLayer();const after=encodeProject(d);e.undo();e.undo();e.undo();e.redo();e.redo();e.redo();assert.equal(encodeProject(d),after);
+});
+test('v9 canonical links roundtrip; hostile forward/self/cyclic/chained/cross-layer and mixed records reject',()=>{
+ const e=fixture(),d=e.document;e.selectFrame('frame-2');e.linkCel('frame-1');e.selectFrame('frame-3');e.linkCel('frame-1');const text=encodeProject(d),data=JSON.parse(text);assert.equal(data.version,10);assert.deepEqual(data.layers[0].cels,[{frameId:'frame-1',empty:true},{frameId:'frame-2',link:'frame-1'},{frameId:'frame-3',link:'frame-1'}]);const round=decodeProject(text);assert.equal(encodeProject(round),text);assert.equal(round.layers[0].cels['frame-1'],round.layers[0].cels['frame-3']);
+ for(const mutate of [p=>p.layers[0].cels[0]={frameId:'frame-1',link:'frame-3'},p=>p.layers[0].cels[1].link='frame-2',p=>p.layers[0].cels[1].link='frame-999',p=>p.layers[0].cels[2].link='frame-2',p=>p.layers[0].cels[1].rgba='AAAAAA==',p=>p.layers[0].cels[1].empty=true,p=>p.layers[0].cels[1].link=1]){const p=structuredClone(data);mutate(p);assert.throws(()=>decodeProject(JSON.stringify(p)));}
+ const v8=structuredClone(data);v8.version=8;v8.layers[0].cels=v8.frames.map(f=>({frameId:f.id,empty:true}));const old=decodeProject(JSON.stringify(v8));assert.equal(hasLinkedCels(old),false);assert.equal(new Set(Object.values(old.layers[0].cels)).size,3);v8.layers[0].cels[1]={frameId:'frame-2',link:'frame-1'};assert.throws(()=>decodeProject(JSON.stringify(v8)));
+ const before=encodeProject(d);assert.throws(()=>e.linkCel('frame-999'));assert.equal(encodeProject(d),before);e.toggleLayerLock();assert.throws(()=>e.linkCel('frame-2'));assert.throws(()=>e.unlinkCel());
+});
+test('native exports expand linked identity, preserve render/timing and report loss',async()=>{
+ const e=fixture(),d=e.document;e.selectFrame('frame-1');e.paint(0,0,[9,8,7,255]);e.commit();e.selectFrame('frame-2');e.linkCel('frame-1');const before=encodeProject(d),ase=(await decodeAseprite(encodeAseprite(d))).document,piskel=await encodePiskel(d,10),out=(await decodePiskel(piskel.text)).document;
+ for(const imported of [ase,out]){assert.equal(hasLinkedCels(imported),false);for(let i=0;i<3;i++)assert.deepEqual(composite(imported,imported.frames[i].id),composite(d,d.frames[i].id));}assert.ok(piskel.warnings.some(w=>w.includes('Linked cels')));assert.ok(encodePsd(d,'frames-as-layers').warnings.some(w=>w.includes('Linked cels')));assert.equal(encodeProject(d),before);
+});
