@@ -1,4 +1,10 @@
 export * from './selection-mask.js';
+import {regenerateStudio,type StudioPlan} from './studio.js';
+export * from './studio.js';
+export * from './commands.js';
+export * from './selection-advanced.js';
+import {prepareDrawing,type DrawingPlan} from './drawing.js';
+export * from './drawing.js';
 import {prepareCanvasGeometry,canvasGeometryLayers,type CanvasGeometryPlan} from './canvas-geometry.js';
 import {prepareSelectionEffect,type SelectionEffectPlan} from './selection-effects.js';
 export * from './selection-effects.js';
@@ -52,6 +58,7 @@ export class PixelEditor {
   get canUndo() { return this.undoStack.length > 0; }
   get canRedo() { return this.redoStack.length > 0; }
   get historyBytes() { return this.bytes; }
+  applyStudio(plan:StudioPlan){this.commit();const fresh=regenerateStudio(this.document,plan,this.historyBudget);if(!fresh.changed)return false;return this.changeLayers(()=>{this.document.layers=fresh.layers;this.document.frames=fresh.frames;this.document.tags=fresh.tags;return true;});}
   private referenceState():ReferenceState {return {references:this.document.references.map(r=>({...r})),activeReferenceId:this.document.activeReferenceId};}
   private changeReferences(after:ReferenceState){this.commit();validateReferences(after);const before=this.referenceState();if(before.activeReferenceId===after.activeReferenceId&&before.references.length===after.references.length&&before.references.every((r,i)=>r.id===after.references[i].id&&r.name===after.references[i].name&&r.pixels===after.references[i].pixels))return false;this.document.references=after.references;this.document.activeReferenceId=after.activeReferenceId;const buffers=new Set([...before.references,...after.references].map(r=>r.pixels));this.record({kind:'references',before,after,bytes:[...buffers].reduce((n,p)=>n+p.byteLength,0)+(before.references.length+after.references.length)*256});return true;}
   addReference(image:Omit<ReferenceImage,'id'>){let n=1;while(this.document.references.some(r=>r.id===`reference-${n}`))n++;const id=`reference-${n}`,reference={...image,id,name:image.name.trim()};validateReferences({references:[...this.document.references,reference],activeReferenceId:id});return this.changeReferences({references:[...this.document.references,{...reference,pixels:reference.pixels.slice()}],activeReferenceId:id});}
@@ -70,6 +77,12 @@ export class PixelEditor {
     return this.changeLayers(()=>{doc.width=fresh.width;doc.height=fresh.height;doc.layers=layers;if(conversion)doc.conversion=conversion;else delete doc.conversion;return true;});
   }
   shape(kind:Shape,a:Point,b:Point,color:RGBA,filled=false) {for(const p of shapePoints(kind,a,b,filled))this.paint(p.x,p.y,color);}
+  applyDrawing(plan:DrawingPlan){
+    this.commit();const doc=this.document;if(!plan||plan.baseline!==encodeProject(doc,false))throw new Error('Drawing source changed. Start the stroke again.');
+    const fresh=prepareDrawing(doc,plan.path,plan.options,this.historyBudget);if(!fresh.changedPixels)return false;
+    const layer=activeLayer(doc),before=rasterCel(doc,layer).slice(),frames=linkedFrames(doc,layer),buffer=ensureCel(doc,layer);buffer.set(fresh.pixels);
+    this.record({kind:'bitmap',layerId:layer.id,frameId:doc.activeFrameId,frames,buffer,before,after:fresh.pixels,bytes:fresh.historyBytes});compactCel(layer,doc.activeFrameId);return true;
+  }
   applySelection(selection:Selection,options:Transform) {
     this.commit();const doc=this.document,layer=activeLayer(doc);
     if(layer.id!==selection.layerId||doc.activeFrameId!==selection.frameId||!layerEditable(doc,layer)||doc.width!==selection.canvasWidth||doc.height!==selection.canvasHeight||rasterCel(doc,layer).length!==selection.baseline.length||!rasterCel(doc,layer).every((v,i)=>v===selection.baseline[i]))throw new Error('The selected cel changed. Cancel and select its pixels again.');
@@ -83,13 +96,13 @@ export class PixelEditor {
   applySelectionPaint(plan:SelectionPaintPlan){
     this.commit();const doc=this.document;
     if(!plan||plan.baseline!==encodeProject(doc,false))throw new Error('Selection paint source changed. Prepare again.');
-    const fresh=prepareSelectionPaint(doc,plan.rect,plan.options,this.historyBudget);if(!fresh.changedPixels)return false;
+    const fresh=prepareSelectionPaint(doc,plan.rect,plan.options,this.historyBudget,plan.mask);if(!fresh.changedPixels)return false;
     const layer=activeLayer(doc),before=rasterCel(doc,layer).slice(),frames=linkedFrames(doc,layer),buffer=ensureCel(doc,layer);buffer.set(fresh.pixels);
     this.record({kind:'bitmap',layerId:layer.id,frameId:doc.activeFrameId,frames,buffer,before,after:fresh.pixels,bytes:fresh.historyBytes});compactCel(layer,doc.activeFrameId);return true;
   }
   applySelectionEffect(plan:SelectionEffectPlan){
     this.commit();const doc=this.document;if(!plan||plan.baseline!==encodeProject(doc,false))throw new Error('Selection operation source changed. Prepare again.');
-    const fresh=prepareSelectionEffect(doc,plan.rect,plan.options,this.historyBudget);if(!fresh.changedPixels)return false;
+    const fresh=prepareSelectionEffect(doc,plan.rect,plan.options,this.historyBudget,plan.mask);if(!fresh.changedPixels)return false;
     const layer=activeLayer(doc),before=rasterCel(doc,layer).slice(),frames=linkedFrames(doc,layer),buffer=ensureCel(doc,layer);buffer.set(fresh.pixels);
     this.record({kind:'bitmap',layerId:layer.id,frameId:doc.activeFrameId,frames,buffer,before,after:fresh.pixels,bytes:fresh.historyBytes});compactCel(layer,doc.activeFrameId);return true;
   }
@@ -97,7 +110,7 @@ export class PixelEditor {
     this.commit();const doc=this.document;
     if(!plan||plan.baseline!==encodeProject(doc,false))throw new Error('Selection action source changed. Prepare again.');
     if(plan.options.kind==='export-png'||plan.options.kind==='export-project')throw new Error('Selection exports are download-only.');
-    const fresh=prepareSelectionAction(doc,plan.rect,plan.options,this.historyBudget);if(!fresh.changed)return false;
+    const fresh=prepareSelectionAction(doc,plan.rect,plan.options,this.historyBudget,plan.mask);if(!fresh.changed)return false;
     const layer=activeLayer(doc),frames=linkedFrames(doc,layer);
     if(fresh.options.kind==='clear'){
       const before=rasterCel(doc,layer).slice(),buffer=ensureCel(doc,layer);buffer.set(fresh.cleared);

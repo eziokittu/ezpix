@@ -3,7 +3,7 @@ import {validateTags,type AnimationTag} from './animation.js';
 import {validateGroups,groupedComposite,type LayerGroup} from './groups.js';
 import { validateRaster, validateRecipe, type Raster, type Recipe } from './conversion.js';
 import { DEFAULT_PALETTE, validatePalette } from './toolkit.js';
-export const ENGINE_VERSION = '0.68.0';
+export const ENGINE_VERSION = '0.133.0';
 export const MAX_SIZE = 256, MAX_LAYERS = 16, MAX_FRAMES=32, MAX_CEL_BYTES=4*1024*1024, MAX_PROJECT_BYTES = 24 * 1024 * 1024;
 export const MIN_FRAME_DURATION=20,MAX_FRAME_DURATION=5000;
 export type RGBA = readonly [number, number, number, number];

@@ -1,4 +1,4 @@
-# @ezpix/core 0.68.0
+# @ezpix/core 0.133.0
 
 Original deterministic RGBA editor and image conversion engine. No runtime
 dependencies or inference. Build with the workspace `npm run build`.
@@ -592,3 +592,202 @@ is at most 64 KiB; nearest transformation uses two further 64 KiB temporaries.
 RGBA source/output temporaries and one bitmap history retain existing canvas,
 cel and history limits. This is a bounded allocation statement, not a measured
 process-memory or latency guarantee.
+
+## Phases 13am-13av: masked paint and colour edits
+
+prepareSelectionPaint and prepareSelectionEffect now accept optional binary
+Uint8Array membership as their fifth argument (fourth remains history budget).
+Rectangular callers retain their existing behavior. Validation rejects wrong
+types, size and non-binary bytes before copying; an omitted mask selects all.
+Plans keep a private copy and expose mask through a getter returning a new copy.
+Caller mutation of the input or exposed mask cannot alter staged membership.
+Apply compares the document fingerprint then regenerates pixels, counts and
+history preflight from validated rect/options/mask; exposed pixel arrays and
+estimates are not trusted. Empty/identity plans preserve redo and sparse cels.
+
+Fill replaces complete RGBA on original members only. Stroke is an inner
+Manhattan band: a selected pixel is painted if its distance to the nearest
+unselected pixel or outside original bounds is <= thickness (integer 1-256).
+Holes create inner boundaries; diagonal-only adjacency is not a direct neighbour.
+A two-pass exact Manhattan distance transform is O(W*H), with a Uint16 distance
+buffer <=128 KiB and binary band <=64 KiB; thickness does not multiply runtime.
+Rectangular stroke keeps its square-cornered inset-band behavior.
+
+Linear/dither/radial/checker/replace/grayscale/invert/alpha retain the 13u-ab
+numerical contracts, but counts and writes skip nonmembers. Gradients/dither and
+checker remain anchored to the entire original rectangle, without tightening to
+mask extents or reindexing disconnected components. Exterior pixels and holes
+retain every RGBA byte. Hidden RGB/partial-alpha rules are unchanged.
+
+Website captures a source-mask copy when opening each dialog. Prepare and Close
+preserve pending move/copy/rotation/flip/scale and membership; Apply consumes that
+preview and edits the original committed mask on selected/linked cels as one
+Undo. All ten commands enable in Select and Transform for binary masks. Numeric
+fields invalidate prepared output. Buffer/extraction/clear/selection exports
+remain disabled for masks until separately adapted. No schema, layer-mask,
+clipboard, AI, upload, runtime-dependency or permission changes were made.
+Mask storage and copies remain bounded by 64 KiB each; bitmap history retains
+its existing three dense-cel buffers plus linked-frame bookkeeping. These source
+bounds are not true process-memory/VRAM or hardware latency measurements.
+
+
+## Local phases 13aw-13bk - 2026-10-22
+
+Masked clear, copy/cut to layer, selection PNG/project export and session
+copy/cut are implemented. Only original members are read/cleared; holes and
+exterior source bytes remain intact. Exports/buffers keep original bounds
+with transparent-black holes; later paste replaces that entire rectangle,
+including holes. No persistent membership metadata is added. Empty clear is
+a no-op; explicit structural copy/cut still creates an undoable empty layer.
+Eight transient mask controls add empty membership, X/Y mirrors, half-turn
+and one-pixel shifts left/right/up/down. Shifts clip without wrapping.
+Pending transforms remain intact until mutating Apply/Cut. Staged source,
+lock, linked-cel, resource and history contracts remain in force.
+See the current handoff for measured verification and remaining gates.
+
+`prepareSelectionAction(doc, rect, options, historyBudget?, mask?)` accepts an
+optional binary Uint8Array with exactly width*height bytes. It validates/copies
+membership and exposes defensive copies. Apply and export regenerate outputs
+from current validated source/settings/membership, ignoring exposed output buffers.
+Undefined selects all members. All-zero membership is valid. `editSelectionMask`
+also accepts `empty`, `mirror-x`, `mirror-y`, `turn-half`, `shift-left`,
+`shift-right`, `shift-up`, `shift-down`. All are O(W*H), bounded at 256x256;
+shifts sample one adjacent source member with outside=0. No raster bytes, schema
+or persistent history are changed by these membership controls.
+
+
+## Phases 13bl-13bz: advanced selection families
+
+Fifteen larger feature families add contiguous wand (seed-relative tolerance,
+RGB/RGBA and four/eight connectivity), global colour range, inclusive alpha
+range, polygon and direct freehand lasso, square/round add/erase mask brushing,
+shape combinations, configurable distance morphology/open/close, enclosed-hole
+filling, connected-component filtering, tight membership bounds, 32-edit mask
+Undo/Redo, four reusable named session slots, strict binary mask PNG interchange
+and optional mask-aware paste preserving destination holes.
+
+All selection generation remains within the original selection rectangle.
+The Advanced selection dialog stages membership before Use membership; artwork
+and pending transforms stay intact. Membership history is separate from artwork
+history. Tightening requires identity pending geometry, refuses empty membership
+and keeps original pixel positions. Session slots survive selection replacement
+but clear on reload. Mask files contain membership only; normal project files
+still omit masks. Paste selected members only is an explicit option when a
+session mask or matching binary source mask PNG is available. The default full
+rectangle paste remains compatible. Selected transparent pixels still replace
+RGBA; nonmembers preserve destination bytes. Both share existing linked-cel,
+stale-source and undo/resource guards.
+
+Algorithms are local and deterministic in shared core; project writer remains
+v10/readers v1-v10, and the companion permissions are unchanged. See the current
+handoff for measured checks, remaining issues and future release gates.
+
+Advanced API: `advancedSelectionMask(selection, operation, combine?)` supports
+replace/union/subtract/intersect/XOR for every operand. Wand/colour compares max
+absolute byte difference to the seed, including hidden RGB, with optional alpha.
+Polygon/lasso use even-odd pixel-center fill with boundary included. Brush paths
+use connected Bresenham stamps, size 1-64, clipped square/round footprints. Paths
+cap at 4096 points and 16M polygon samples or stamp-pixel visits. Morphology uses
+O(W*H) exact L1/Chebyshev distance, radius 1-256, exterior=0; components/holes use
+bounded traversal. Largest-component ties select first row-major component.
+`selectionMaskBounds`/`tightenSelectionMask` preserve source raster binding; empty
+tightening rejects. `SelectionMaskSession` bounds mask undo to 32 entries per
+rectangle; `SelectionMaskLibrary` bounds reusable storage to four defensive slots
+with exact dimension matching. Neither stores artwork or serializes to projects.
+`exportSelectionMaskPng` and `importSelectionMaskPng` exchange opaque black/white
+PNG at exact bounds; imports cap at 1 MiB and use the strict bounded PNG reader.
+`prepareSelectionPaste(target, source, options, historyBudget?, mask?)` optionally
+uses private copied source membership. Apply regenerates output with that mask,
+ignores exposed pixel/preview mutations and preserves nonmember destination bytes.
+
+
+## Phases 13ca-13cj: drawing workflow families
+
+Primary/secondary RGBA inks now support alpha, swap/reset shortcuts, raw-cel or
+composite sampling and legacy brush/fill/shape integration. Opt-in Advanced Pencil
+adds replace/source-over and destination alpha lock, pixel-perfect cleanup, moving
+average stabilization and sample spacing, wrapped/mirrored footprints, custom
+selection/PNG stamps with four session slots, primary/secondary Bayer dithering,
+seeded spray, palette-step shading and immutable-source blur/sharpen brushes.
+Advanced drawing offers a staged path preview plus direct main-canvas strokes.
+Release applies one Undo; pointer cancellation/Escape discard the transient stroke.
+Legacy pencil/eraser remains available. All algorithms are shared and local;
+project writer/readers stay v10/v1-v10, with unchanged companion permissions.
+See current handoff for exact arithmetic, measured gates and remaining work.
+
+`prepareDrawing(doc,path,options,historyBudget?)` validates/copies/freeze settings,
+colours, paths and custom stamps. Apply regenerates from source fingerprint and
+private stamp bytes, ignoring exposed output mutations. Each destination pixel
+changes at most once per stroke, preserving source-order-independent alpha/filter
+results (spray acceptance is seed/path dependent). Source-over uses exact integer
+straight-RGBA composition; transparent-over is identity. Alpha lock skips zero-alpha
+destination and preserves other destination alpha. Shade/sharpen retain final
+alpha even with source-over. Blur averages alpha and alpha-weighted RGB over a 3x3
+source neighbourhood, preserving center hidden RGB when summed alpha is zero.
+Sharpen clamps 5*center-minus-four-neighbours in encoded RGB. Sampling clamps or
+wraps per axis. Dither uses canvas-anchored 4x4 Bayer complete RGBA endpoints.
+Density 0/100 gives secondary/primary exactly; seeded spray uses a documented
+32-bit integer hash. Shade uses stable nearest palette RGB then signed clamped
+index steps, skipping transparent source pixels. Pixel-perfect removes orthogonal
+one-pixel corners before spacing; stabilization averages up to 17 input anchors
+with upward half ties and no release catch-up. Connected path max 65536 samples,
+input max 4096 anchors, footprint/mirror max 8M visits. Stamp max 32x32 RGBA, PNG
+input 256 KiB, four library slots (16 KiB pixels total), no storage/network. Mask
+stamps modulate ink alpha; RGBA stamps use stamp colour; transparent replacement
+is explicit. Selected/linked cels, lock/stale checks and bitmap Undo budget stay
+in force. Empty outputs preserve redo and sparse cels. No schema change.
+
+
+## Studio and command workflows (13ck-13cy)
+
+`EDITOR_COMMANDS`, `searchCommands`, `defaultCommandBindings`,
+`validateCommandBindings` and `commandForKey` are the shared discovery/binding
+contract. Mod means Ctrl/Command. Bindings use a single letter, digit or square
+bracket with canonical Mod/Shift/Alt modifiers. Duplicate and selected reserved
+browser bindings reject atomically. Empty disables a command. Website preferences
+use device-local `ezpix.shortcuts.v1`; shortcut JSON import caps at 16 KiB.
+Typing suppresses tool/edit bindings; Mod-bound Save remains available outside dialogs. Composition, native dialogs and pending action prompts suppress global bindings.
+
+`defaultStudioOptions`, `prepareStudio` and `PixelEditor.applyStudio` support
+polygon (even-odd fill or outline), quadratic/cubic Bezier curves, premultiplied
+RGBA linear/radial/diamond gradients, free clockwise rotation, simultaneous X/Y
+shears, convex four-corner projective mapping, cyclic/clipped offsets, diamond
+outer contours, alpha-aware cast shadows, alpha dilation/erosion/threshold,
+range cel clear/copy/unlink, duration set/percent and range reverse/pingpong/repeat.
+These are baked raster/timeline operations, not live effect stacks or indexed
+project modes. Numeric geometry controls are a staged workflow; canvas polygon
+handles and text/font tools remain future work. Output keeps current dimensions.
+
+Frame indices are zero-based inclusive. Raster operations validate every selected
+layer/group's visibility/lock and preserve links, reporting peers outside the
+range. Copy snapshots each layer's original active-frame cel and detaches only
+selected targets. Unlink detaches each selected target. Clear keeps links and
+compacts zeros. Equal independent source buffers remain independent. Sequence
+insertion links appended cels to their original frames; reversal moves frame IDs
+while tags remain positional. Insertions shift later tags and expand tags ending
+at or spanning the insertion boundary. Frame durations remain 20-5000 ms; frames
+cap at 32 and the existing dense cel cap remains 4 MiB. Retime is half-up.
+
+Perspective corners are ordered pixel-edge coordinates, inverse mapped at pixel
+centres with nearest-neighbour sampling. Shear percentages reject a determinant
+below 0.01. Curves use 32-8192 subdivisions based on four times control-polygon
+length, joining half-up rounded points with integer segments. Shared destination
+membership prevents overpainting at polygon/curve intersections. Alpha dilation
+uses the strongest Manhattan-neighbour alpha, nearest distance then row-major
+sampling to break ties; newly visible colour borrows that neighbour. Erosion and
+threshold retain hidden RGB. Contours touch only alpha-zero destinations; shadows
+composite original artwork over the offset colour. All byte output is half-up.
+
+Preparation owns private copied options, detached previews and copied planned frame order/durations. Apply rejects
+forged or stale plans and regenerates output. Full structural snapshots provide
+one atomic Undo, preserving tags, groups, references, palette and conversion
+source. Before Apply mutates artwork: 64 control points within +/-1024, radius1-16,
+32 million raster/edge visits, existing dense cel budget, and exact retained-buffer
+Undo budget. A no-op does not enter history. Source fingerprints exclude retained
+conversion source bytes consistently with other staged core tools.
+
+`expandedOnion` is display-only: 0-8 ghosts each direction, RGBA tints, opacity,
+distance falloff and optional wrapping. Nearest visits win duplicate frame IDs;
+current frame is never included. Far ghosts composite before near ghosts.
+Settings remain in this tab and never enter project pixels/schema. Project writer
+stays v10; readers stay v1-v10. Extension permissions remain unchanged.

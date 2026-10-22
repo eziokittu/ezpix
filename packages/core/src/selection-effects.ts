@@ -1,3 +1,4 @@
+import {copySelectionMask} from './selection-mask.js';
 import {activeLayer,rasterCel,linkedFrames,encodeProject,composite,type PixelDocument,type RGBA} from './document.js';
 import {layerEditable} from './groups.js';
 import type {Rect} from './toolkit.js';
@@ -8,7 +9,7 @@ export type SelectionEffectOptions=
  |{kind:'replace';match:RGBA;color:RGBA}
  |{kind:'grayscale'}|{kind:'invert'}
  |{kind:'alpha';percent:number};
-export interface SelectionEffectPlan {readonly baseline:string;readonly rect:Readonly<Rect>;readonly options:Readonly<SelectionEffectOptions>;readonly pixels:Uint8ClampedArray;readonly preview:Uint8ClampedArray;readonly changedPixels:number;readonly linked:number;readonly historyBytes:number}
+export interface SelectionEffectPlan {readonly mask?:Uint8Array;readonly baseline:string;readonly rect:Readonly<Rect>;readonly options:Readonly<SelectionEffectOptions>;readonly pixels:Uint8ClampedArray;readonly preview:Uint8ClampedArray;readonly changedPixels:number;readonly linked:number;readonly historyBytes:number}
 const BAYER=[0,8,2,10,12,4,14,6,3,11,1,9,15,7,13,5];
 function color(value:RGBA):RGBA {if(!Array.isArray(value)||value.length!==4||!Array.from(value).every(n=>Number.isInteger(n)&&n>=0&&n<=255))throw new Error('RGBA needs four whole bytes from 0 to 255.');return Object.freeze([...value]) as unknown as RGBA;}
 function settings(o:SelectionEffectOptions):Readonly<SelectionEffectOptions>{
@@ -22,10 +23,11 @@ function settings(o:SelectionEffectOptions):Readonly<SelectionEffectOptions>{
  throw new Error('Unknown selection operation.');
 }
 /** All arithmetic stays exact below 2^53 within 256px bounds. Encoded RGBA, nearest ties up. */
-export function prepareSelectionEffect(doc:PixelDocument,rect:Rect,options:SelectionEffectOptions,historyBudget=8*1024*1024):SelectionEffectPlan {
+export function prepareSelectionEffect(doc:PixelDocument,rect:Rect,options:SelectionEffectOptions,historyBudget=8*1024*1024,mask?:Uint8Array):SelectionEffectPlan {
  if(!rect||![rect.x,rect.y,rect.width,rect.height].every(Number.isInteger)||rect.x<0||rect.y<0||rect.width<1||rect.height<1||rect.x+rect.width>doc.width||rect.y+rect.height>doc.height)throw new Error('Selection rectangle must fit inside the canvas.');
  const o=settings(options),r=Object.freeze({x:rect.x,y:rect.y,width:rect.width,height:rect.height}),layer=activeLayer(doc);
  if(!layerEditable(doc,layer))throw new Error('Show and unlock the selected layer and its groups before applying a selection operation.');
+ const inputMask=copySelectionMask(r,mask);
  const before=rasterCel(doc,layer),linked=linkedFrames(doc,layer).length;
  const sample=(x:number,y:number,i:number):RGBA=>{
   const p=[before[i],before[i+1],before[i+2],before[i+3]] as const;
@@ -43,10 +45,10 @@ export function prepareSelectionEffect(doc:PixelDocument,rect:Rect,options:Selec
   return o.start.map((v,c)=>Math.floor((2*(v*(denominator-numerator)+o.end[c]*numerator)+denominator)/(2*denominator))) as unknown as RGBA;
  };
  let changedPixels=0;
- for(let y=0;y<r.height;y++)for(let x=0;x<r.width;x++){const i=((r.y+y)*doc.width+r.x+x)*4;if(sample(x,y,i).some((v,c)=>v!==before[i+c]))changedPixels++;}
+ for(let y=0;y<r.height;y++)for(let x=0;x<r.width;x++)if(!inputMask||inputMask[y*r.width+x]){const i=((r.y+y)*doc.width+r.x+x)*4;if(sample(x,y,i).some((v,c)=>v!==before[i+c]))changedPixels++;}
  const historyBytes=3*doc.width*doc.height*4+256+linked*64;
  if(changedPixels&&(!Number.isFinite(historyBudget)||historyBytes>historyBudget))throw new Error('Selection operation exceeds the undo memory budget.');
- const pixels=before.slice();for(let y=0;y<r.height;y++)for(let x=0;x<r.width;x++){const i=((r.y+y)*doc.width+r.x+x)*4;pixels.set(sample(x,y,i),i);}
+ const pixels=before.slice();for(let y=0;y<r.height;y++)for(let x=0;x<r.width;x++)if(!inputMask||inputMask[y*r.width+x]){const i=((r.y+y)*doc.width+r.x+x)*4;pixels.set(sample(x,y,i),i);}
  const preview=composite({...doc,layers:doc.layers.map(l=>l.id===layer.id?{...l,cels:{...l.cels,[doc.activeFrameId]:pixels}}:l)});
- return Object.freeze({baseline:encodeProject(doc,false),rect:r,options:o,pixels,preview,changedPixels,linked,historyBytes});
+ return Object.freeze({get mask(){return inputMask?.slice();},baseline:encodeProject(doc,false),rect:r,options:o,pixels,preview,changedPixels,linked,historyBytes});
 }

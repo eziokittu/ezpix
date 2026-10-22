@@ -1,7 +1,7 @@
 # EzPix remaining release verification worksheet
 
 Current local evidence is in
-[continuation 80](../../glitchbong/docs/ezpix-continue80.md). This worksheet records
+[current handoff](../../glitchbong/docs/ezpix-continue145.md). This worksheet records
 remaining manual gates; its presence does not mean any row passed. Use original
 fixtures, keep captures local, and record actual hardware, OS/browser versions,
 date, result and artifact location for each run. Never attach personal artwork,
@@ -37,8 +37,8 @@ builds and other browser suites out of timing runs. Do not overwrite the older
 
 ## Current local evidence
 
-Core/extension 0.68.0 writes v10 and reads v1-v10. Latest implementation verification:
-252 core/protocol tests, independent numerical/native checks, production TypeScript
+Core/extension 0.133.0 writes v10 and reads v1-v10. Latest implementation verification:
+268 core/protocol tests, independent numerical/native checks, production TypeScript
 and 1,245-page build, 62 ad-route checks, staged browser downloads/recovery and real
 unpacked-extension capture/handoff. Full details and ignored artifact locations are
 in the current handoff. These checks do not close any unperformed gate in the table.
@@ -125,3 +125,83 @@ paint/effects/buffer/selection exports disable explicitly. Current handoff 80
 records local tests and evidence separately from the unperformed physical,
 manual-app, performance, hosted, licensing and store gates above. No release
 permission follows from implementing these features.
+
+## Local 13am-13av evidence update
+
+Core/extension 0.118.0 adapts solid fill, inner four-neighbour stroke and all eight
+selection colour operations to binary masks. Copied membership, regenerated
+Apply, exact original-bounds sampling, holes and existing history/link/budget
+contracts are covered by current handoff 90. Buffer/extraction/clear/selection
+exports remain held for masks. No manual/physical, licensing or publication
+gate above is closed by these local feature and automated checks.
+
+
+## Local phases 13aw-13bk - 2026-10-22
+
+Masked clear, copy/cut to layer, selection PNG/project export and session
+copy/cut are implemented. Only original members are read/cleared; holes and
+exterior source bytes remain intact. Exports/buffers keep original bounds
+with transparent-black holes; later paste replaces that entire rectangle,
+including holes. No persistent membership metadata is added. Empty clear is
+a no-op; explicit structural copy/cut still creates an undoable empty layer.
+Eight transient mask controls add empty membership, X/Y mirrors, half-turn
+and one-pixel shifts left/right/up/down. Shifts clip without wrapping.
+Pending transforms remain intact until mutating Apply/Cut. Staged source,
+lock, linked-cel, resource and history contracts remain in force.
+See the current handoff for measured verification and remaining gates.
+
+
+## Phases 13bl-13bz: advanced selection families
+
+Fifteen larger feature families add contiguous wand (seed-relative tolerance,
+RGB/RGBA and four/eight connectivity), global colour range, inclusive alpha
+range, polygon and direct freehand lasso, square/round add/erase mask brushing,
+shape combinations, configurable distance morphology/open/close, enclosed-hole
+filling, connected-component filtering, tight membership bounds, 32-edit mask
+Undo/Redo, four reusable named session slots, strict binary mask PNG interchange
+and optional mask-aware paste preserving destination holes.
+
+All selection generation remains within the original selection rectangle.
+The Advanced selection dialog stages membership before Use membership; artwork
+and pending transforms stay intact. Membership history is separate from artwork
+history. Tightening requires identity pending geometry, refuses empty membership
+and keeps original pixel positions. Session slots survive selection replacement
+but clear on reload. Mask files contain membership only; normal project files
+still omit masks. Paste selected members only is an explicit option when a
+session mask or matching binary source mask PNG is available. The default full
+rectangle paste remains compatible. Selected transparent pixels still replace
+RGBA; nonmembers preserve destination bytes. Both share existing linked-cel,
+stale-source and undo/resource guards.
+
+Algorithms are local and deterministic in shared core; project writer remains
+v10/readers v1-v10, and the companion permissions are unchanged. See the current
+handoff for measured checks, remaining issues and future release gates.
+
+
+## Phases 13ca-13cj: drawing workflow families
+
+Primary/secondary RGBA inks now support alpha, swap/reset shortcuts, raw-cel or
+composite sampling and legacy brush/fill/shape integration. Opt-in Advanced Pencil
+adds replace/source-over and destination alpha lock, pixel-perfect cleanup, moving
+average stabilization and sample spacing, wrapped/mirrored footprints, custom
+selection/PNG stamps with four session slots, primary/secondary Bayer dithering,
+seeded spray, palette-step shading and immutable-source blur/sharpen brushes.
+Advanced drawing offers a staged path preview plus direct main-canvas strokes.
+Release applies one Undo; pointer cancellation/Escape discard the transient stroke.
+Legacy pencil/eraser remains available. All algorithms are shared and local;
+project writer/readers stay v10/v1-v10, with unchanged companion permissions.
+See current handoff for exact arithmetic, measured gates and remaining work.
+
+
+## Local command/geometry/animation batch 13ck-13cy
+
+Current core/companion 0.133.0 retains v10 writing/v1-v10 reading and identical
+activeTab/scripting/alarms permissions. Command discovery/configuration, thirteen
+staged raster/cel/timeline families and display-only expanded onion skins are
+implemented. Local evidence and reproducible commands are consolidated in
+[current handoff](../../glitchbong/docs/ezpix-continue145.md). Numeric geometry controls are
+not canvas transform handles, text/fonts, live effects or document mode support.
+All physical devices/stylus, other browsers, external human application/engine
+roundtrips, endurance, actual peak memory, minimum hardware, licensing/name,
+hosted/offline/update, store packaging and approval gates remain open. No release,
+commit, push or deployment was authorized by this continuation request.
