@@ -1,0 +1,53 @@
+import {test} from 'node:test';import assert from 'node:assert/strict';
+import {PixelEditor,createDocument,encodeProject,decodeProject,prepareCanvasGeometry,storedArtworkBounds,convert,defaultRecipe,encodeAseprite,decodeAseprite,encodePiskel,decodePiskel,encodeOra,decodeOra,encodePsd,decodePsd,rasterCel} from '../dist/index.js';
+const resize={kind:'resize',width:7,height:5,anchorX:'center',anchorY:'center',offsetX:0,offsetY:0},crop={kind:'crop',x:1,y:1,width:2,height:2},trim={kind:'trim'};
+function fixture(){const e=new PixelEditor(createDocument(4,3,'Geometry study')),d=e.document;e.paint(1,1,[255,0,0,128]);e.paint(2,1,[7,8,9,0]);e.commit();e.addFrame();e.linkCel('frame-1');e.addFrame(true);e.selectFrame('frame-1');e.createGroup();e.setTag({name:'Study',from:0,to:2,mode:'ping-pong'});e.addLayer();e.paint(2,2,[0,255,0,1]);e.commit();e.toggleLayer();e.toggleLayerLock();e.selectLayer('layer-1');e.addReference({name:'Outside bounds',width:1,height:1,pixels:new Uint8ClampedArray([1,2,3,255])});const source={width:4,height:3,pixels:new Uint8ClampedArray(48).fill(127)};d.conversion={source,recipe:{...defaultRecipe(source),width:4,height:3}};return e;}
+const at=(p,w,x,y)=>[...p.slice((y*w+x)*4,(y*w+x+1)*4)];
+test('resize anchor/offset exact padding and odd-difference placement, including negative center rounding',()=>{
+ for(const [anchorX,anchorY,dx,dy] of [['start','start',0,0],['center','center',1,1],['end','end',3,2]]){const e=fixture(),d=e.document;e.applyCanvasGeometry(prepareCanvasGeometry(d,{...resize,anchorX,anchorY}));assert.deepEqual(at(d.layers[0].cels['frame-1'],7,1+dx,1+dy),[255,0,0,128]);assert.deepEqual(at(d.layers[0].cels['frame-1'],7,2+dx,1+dy),[7,8,9,0]);assert.deepEqual(at(d.layers[0].cels['frame-1'],7,0,4),[0,0,0,0]);}
+ const e=fixture(),d=e.document,plan=prepareCanvasGeometry(d,{...resize,width:3,height:2,offsetX:1,offsetY:-1});assert.equal(plan.x,0);assert.equal(plan.y,2);e.applyCanvasGeometry(plan);assert.deepEqual(at(d.layers[1].cels['frame-1'],3,2,0),[0,255,0,1]);
+});
+for(const options of [resize,crop,trim])test(`${options.kind}: read-only frozen staging, regenerated output, source/references/metadata/links and undo/redo`,()=>{
+ const e=fixture(),d=e.document,before=encodeProject(d),buffers=d.layers.map(l=>Object.values(l.cels)),source=d.conversion.source,refs=d.references,settings=structuredClone(options),plan=prepareCanvasGeometry(d,settings);assert.ok(Object.isFrozen(plan));assert.ok(Object.isFrozen(plan.options));assert.equal(encodeProject(d),before);if(settings.kind==='resize')settings.width=99;else if(settings.kind==='crop')settings.x=0;plan.preview.fill(99);
+ assert.equal(e.applyCanvasGeometry({...plan,width:99,height:99,x:200,changed:false,historyBytes:0}),true);assert.equal(d.width,plan.width);assert.equal(d.height,plan.height);assert.equal(d.layers[0].cels['frame-1'],d.layers[0].cels['frame-2']);assert.notEqual(d.layers[0].cels['frame-1'],d.layers[0].cels['frame-3']);assert.equal(d.layers[1].cels['frame-2'].length,0);assert.equal(d.layers[1].locked,true);assert.equal(d.layers[1].visible,false);assert.equal(d.conversion.source,source);assert.equal(d.references,refs);assert.equal(d.conversion.recipe.width,d.width);assert.equal(d.conversion.recipe.height,d.height);assert.deepEqual(d.conversion.recipe.crop,{x:0,y:0,width:4,height:3});const after=encodeProject(d);assert.equal(encodeProject(decodeProject(after)),after);
+ assert.ok(e.undo());assert.equal(encodeProject(d),before);for(let l=0;l<buffers.length;l++)for(let f=0;f<3;f++)assert.equal(Object.values(d.layers[l].cels)[f],buffers[l][f]);assert.ok(e.redo());assert.equal(encodeProject(d),after);
+});
+test('crop exact raw bytes, clipped count includes hidden RGB and ignores linked duplicates',()=>{
+ const e=fixture(),d=e.document,plan=prepareCanvasGeometry(d,{kind:'crop',x:1,y:1,width:1,height:1});assert.equal(plan.clippedPixels,3);e.applyCanvasGeometry(plan);assert.deepEqual([...d.layers[0].cels['frame-1']],[255,0,0,128]);assert.equal(d.layers[1].cels['frame-1'].length,0);assert.notEqual(d.layers[1].cels['frame-1'],d.layers[1].cels['frame-2']);
+});
+test('trim union keeps hidden RGB, hidden/locked artwork, all frames and excludes source/references',()=>{
+ const e=fixture(),d=e.document;assert.deepEqual(storedArtworkBounds(d),{x:1,y:1,width:2,height:2});d.layers[0].cels['frame-3'][(0*4+3)*4]=9;assert.deepEqual(storedArtworkBounds(d),{x:1,y:0,width:3,height:3});e.applyCanvasGeometry(prepareCanvasGeometry(d,trim));assert.equal(d.width,3);assert.equal(d.height,3);assert.equal(prepareCanvasGeometry(d,trim).changed,false);
+});
+test('identity/no-op and empty trim keep history, sparse buffers and redo',()=>{
+ const e=new PixelEditor(createDocument(256,256)),d=e.document,buffer=d.layers[0].cels['frame-1'];assert.equal(storedArtworkBounds(d),null);for(const options of [trim,{kind:'crop',x:0,y:0,width:256,height:256},{...resize,width:256,height:256}])assert.equal(e.applyCanvasGeometry(prepareCanvasGeometry(d,options)),false);assert.equal(e.canUndo,false);assert.equal(d.layers[0].cels['frame-1'],buffer);e.setPalette(['#ffffff']);e.undo();e.applyCanvasGeometry(prepareCanvasGeometry(d,trim));assert.equal(e.canRedo,true);
+});
+test('malformed dimensions/anchors/offsets/crop rectangles fail atomically',()=>{
+ const e=fixture(),d=e.document,before=encodeProject(d);for(const options of [null,{kind:'bad'},...[0,257,1.5,NaN,Infinity].map(width=>({...resize,width})),{...resize,anchorX:'bad'},{...resize,anchorY:null},{...resize,offsetX:257},{...resize,offsetY:1.1},{...crop,x:-1},{...crop,y:3},{...crop,x:3},{...crop,width:4}])assert.throws(()=>prepareCanvasGeometry(d,options));assert.equal(encodeProject(d),before);
+});
+test('stale geometry rejects raster, metadata, frame and recipe edits',()=>{
+ for(const change of [e=>{e.paint(0,0,[1,2,3,4]);e.commit();},e=>e.renameLayer('Changed'),e=>e.selectFrame('frame-2'),e=>{e.document.conversion.recipe.dither=true;}]){const e=fixture(),d=e.document,plan=prepareCanvasGeometry(d,resize);change(e);const before=encodeProject(d);assert.throws(()=>e.applyCanvasGeometry(plan),/changed/);assert.equal(encodeProject(d),before);}
+});
+test('geometry undo interleaves pixel and structural commands across original/transformed buffers',()=>{
+ const e=fixture(),d=e.document,before=encodeProject(d);e.applyCanvasGeometry(prepareCanvasGeometry(d,resize));const resized=encodeProject(d);e.paint(0,0,[5,6,7,255]);e.commit();const painted=encodeProject(d);e.clearCel();const cleared=encodeProject(d);for(const expected of [painted,resized,before]){assert.ok(e.undo());assert.equal(encodeProject(d),expected);}for(const expected of [resized,painted,cleared]){assert.ok(e.redo());assert.equal(encodeProject(d),expected);}
+});
+test('dense project and undo budgets reject before mutation; maximum bounded shrink and empty expansion work',()=>{
+ const e=new PixelEditor(createDocument(256,256)),d=e.document;for(let n=1;n<16;n++)e.addFrame();for(const frame of d.frames)d.layers[0].cels[frame.id]=new Uint8ClampedArray(256*256*4).fill(255);assert.throws(()=>prepareCanvasGeometry(d,{...resize,width:256,height:256,offsetX:1}),/undo memory/);const before=encodeProject(d);const p=prepareCanvasGeometry(d,{...resize,width:128,height:128});assert.ok(p.historyBytes<8*1024*1024);e.applyCanvasGeometry(p);assert.ok(e.historyBytes<=8*1024*1024);e.undo();assert.equal(encodeProject(d),before);
+ const tiny=new PixelEditor(createDocument(2,2),1),prior=encodeProject(tiny.document);assert.throws(()=>tiny.applyCanvasGeometry(prepareCanvasGeometry(tiny.document,resize)),/undo memory/);assert.equal(encodeProject(tiny.document),prior);assert.equal(tiny.canUndo,false);
+ const many=new PixelEditor(createDocument(64,64));for(let i=1;i<32;i++)many.addFrame();assert.throws(()=>prepareCanvasGeometry(many.document,{...resize,width:256,height:256}),/4 MiB/);assert.equal(many.document.width,64);
+ const empty=new PixelEditor(createDocument(1,1));empty.applyCanvasGeometry(prepareCanvasGeometry(empty.document,{...resize,width:256,height:256}));assert.equal(empty.document.layers[0].cels['frame-1'].length,0);
+});
+test('geometry command remains undoable while older history is evicted',()=>{
+ const e=new PixelEditor(createDocument(4,3),5000);e.paint(1,1,[1,2,3,4]);e.commit();for(let i=0;i<20;i++)e.setPalette([i%2?'#ff0000':'#00ff00']);const before=encodeProject(e.document);e.applyCanvasGeometry(prepareCanvasGeometry(e.document,resize));assert.ok(e.canUndo);assert.ok(e.historyBytes<=5000);assert.ok(e.evicted);e.undo();assert.equal(encodeProject(e.document),before);
+});
+test('empty linked and independent cels retain their exact equivalence classes through geometry and serialization',()=>{
+ const e=new PixelEditor(createDocument(2,2)),d=e.document;e.addFrame();e.linkCel('frame-1');e.addFrame();const before=encodeProject(d);e.applyCanvasGeometry(prepareCanvasGeometry(d,resize));for(const doc of [d,decodeProject(encodeProject(d))]){assert.equal(doc.layers[0].cels['frame-1'],doc.layers[0].cels['frame-2']);assert.notEqual(doc.layers[0].cels['frame-1'],doc.layers[0].cels['frame-3']);}e.undo();assert.equal(encodeProject(d),before);
+});
+test('converted geometry round-trips v10 with retained source and restores exact recipe on undo',()=>{
+ const source={width:2,height:1,pixels:new Uint8ClampedArray([1,2,3,255,4,5,6,128])},e=new PixelEditor(convert(source,{...defaultRecipe(source),width:2,height:1})),before=encodeProject(e.document);e.applyCanvasGeometry(prepareCanvasGeometry(e.document,resize));const after=encodeProject(e.document);assert.equal(encodeProject(decodeProject(after)),after);e.undo();assert.equal(encodeProject(e.document),before);
+});
+test('resized/cropped raw artwork round-trips supported native raster subsets',async()=>{
+ const e=fixture(),d=e.document;e.ungroup('group-1');for(const options of [resize,{kind:'crop',x:1,y:1,width:3,height:2}]){e.applyCanvasGeometry(prepareCanvasGeometry(d,options));for(const back of [(await decodeAseprite(encodeAseprite(d))).document,(await decodeOra((await encodeOra(d)).bytes)).document,decodePsd(encodePsd(d).bytes).document]){assert.equal(back.width,d.width);assert.equal(back.height,d.height);for(let i=0;i<d.layers.length;i++)assert.deepEqual(rasterCel(back,back.layers[i]),rasterCel(d,d.layers[i]));}}
+});
+
+test('binary-alpha resized Piskel retains geometry in its supported subset',async()=>{const e=new PixelEditor(createDocument(3,2));e.paint(1,1,[30,60,90,255]);e.commit();e.applyCanvasGeometry(prepareCanvasGeometry(e.document,resize));const back=(await decodePiskel((await encodePiskel(e.document)).text)).document;assert.equal(back.width,7);assert.equal(back.height,5);assert.deepEqual(rasterCel(back,back.layers[0]),rasterCel(e.document,e.document.layers[0]));});
+

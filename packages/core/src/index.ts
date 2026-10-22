@@ -1,3 +1,14 @@
+export * from './selection-mask.js';
+import {prepareCanvasGeometry,canvasGeometryLayers,type CanvasGeometryPlan} from './canvas-geometry.js';
+import {prepareSelectionEffect,type SelectionEffectPlan} from './selection-effects.js';
+export * from './selection-effects.js';
+import {regenerateSelectionPaste,type SelectionPastePlan} from './selection-paste.js';
+export * from './selection-paste.js';
+import {prepareSelectionAction,type SelectionActionPlan} from './selection-actions.js';
+export * from './selection-actions.js';
+import {prepareSelectionPaint,type SelectionPaintPlan} from './selection-paint.js';
+export * from './selection-paint.js';
+export * from './canvas-geometry.js';
 import {prepareAdjustment,type AdjustmentPlan} from './adjustments.js';
 import {preparePaletteOperation,type PaletteOperationPlan} from './palette-organise.js';
 export * from './palette-organise.js';
@@ -27,7 +38,7 @@ export * from './sheet.js';
 export * from './tiles.js';
 export * from './quick.js';
 export type Delta = { index: number; before: number[]; after: number[] };
-type LayerState = { layers: Layer[]; activeLayerId: string;frames:Frame[];activeFrameId:string;groups:LayerGroup[];tags:AnimationTag[] };
+type LayerState = { width:number;height:number;conversion:PixelDocument['conversion'];layers: Layer[]; activeLayerId: string;frames:Frame[];activeFrameId:string;groups:LayerGroup[];tags:AnimationTag[] };
 type Command = { bytes: number } & ({kind:'references';before:ReferenceState;after:ReferenceState}|{ kind:'pixels'; layerId:string;frameId:string;frames:string[];buffer:Uint8ClampedArray;changes:Delta[] } | {kind:'bitmap';layerId:string;frameId:string;frames:string[];buffer:Uint8ClampedArray;before:Uint8ClampedArray;after:Uint8ClampedArray} | {kind:'layers'; before:LayerState; after:LayerState}|{kind:'palette';before:string[];after:string[]});
 /** A gesture is one command; one entry per changed pixel, including mirrored pixels. */
 export class PixelEditor {
@@ -50,13 +61,68 @@ export class PixelEditor {
   setPalette(colors:readonly string[]) {this.commit();const after=validatePalette(colors),before=this.document.palette.slice();if(before.join()===after.join())return false;this.document.palette=after;this.record({kind:'palette',before,after,bytes:(before.length+after.length)*64});return true;}
   applyPaletteRamp(plan:PaletteRampPlan){this.commit();if(!plan||plan.baseline!==encodeProject(this.document,false))throw new Error('Ramp source changed. Prepare again.');return this.setPalette(preparePaletteRamp(this.document,plan.options).colors);}
   applyPaletteOperation(plan:PaletteOperationPlan){this.commit();if(!plan||plan.baseline!==encodeProject(this.document,false))throw new Error('Palette source changed. Prepare again.');return this.setPalette(preparePaletteOperation(this.document,plan.options).colors);}
+  applyCanvasGeometry(plan:CanvasGeometryPlan){
+    this.commit();const doc=this.document;
+    if(!plan||plan.baseline!==encodeProject(doc,false))throw new Error('Canvas source changed. Prepare again.');
+    const fresh=prepareCanvasGeometry(doc,plan.options,this.historyBudget);if(!fresh.changed)return false;
+    // Allocate only after validation/budget checks; mutation starts after every cel is ready.
+    const layers=canvasGeometryLayers(doc,fresh),conversion=doc.conversion?{...doc.conversion,recipe:{...doc.conversion.recipe,width:fresh.width,height:fresh.height}}:undefined;
+    return this.changeLayers(()=>{doc.width=fresh.width;doc.height=fresh.height;doc.layers=layers;if(conversion)doc.conversion=conversion;else delete doc.conversion;return true;});
+  }
   shape(kind:Shape,a:Point,b:Point,color:RGBA,filled=false) {for(const p of shapePoints(kind,a,b,filled))this.paint(p.x,p.y,color);}
   applySelection(selection:Selection,options:Transform) {
     this.commit();const doc=this.document,layer=activeLayer(doc);
     if(layer.id!==selection.layerId||doc.activeFrameId!==selection.frameId||!layerEditable(doc,layer)||doc.width!==selection.canvasWidth||doc.height!==selection.canvasHeight||rasterCel(doc,layer).length!==selection.baseline.length||!rasterCel(doc,layer).every((v,i)=>v===selection.baseline[i]))throw new Error('The selected cel changed. Cancel and select its pixels again.');
     const pixels=transformSelection(selection,options),baseline=rasterCel(doc,layer);
-    for(let p=0;p<pixels.length;p+=4)if(!pixels.subarray(p,p+4).every((v,i)=>v===baseline[p+i]))this.paint(p/4%doc.width,Math.floor(p/4/doc.width),[pixels[p],pixels[p+1],pixels[p+2],pixels[p+3]]);
-    return this.commit();
+    if(pixels.every((v,i)=>v===baseline[i]))return false;
+    const frames=linkedFrames(doc,layer),bytes=3*pixels.byteLength+256+frames.length*64;
+    if(bytes>this.historyBudget)throw new Error('Selection transform exceeds the undo memory budget.');
+    const before=baseline.slice(),buffer=ensureCel(doc,layer);buffer.set(pixels);
+    this.record({kind:'bitmap',layerId:layer.id,frameId:doc.activeFrameId,frames,buffer,before,after:pixels,bytes});compactCel(layer,doc.activeFrameId);return true;
+  }
+  applySelectionPaint(plan:SelectionPaintPlan){
+    this.commit();const doc=this.document;
+    if(!plan||plan.baseline!==encodeProject(doc,false))throw new Error('Selection paint source changed. Prepare again.');
+    const fresh=prepareSelectionPaint(doc,plan.rect,plan.options,this.historyBudget);if(!fresh.changedPixels)return false;
+    const layer=activeLayer(doc),before=rasterCel(doc,layer).slice(),frames=linkedFrames(doc,layer),buffer=ensureCel(doc,layer);buffer.set(fresh.pixels);
+    this.record({kind:'bitmap',layerId:layer.id,frameId:doc.activeFrameId,frames,buffer,before,after:fresh.pixels,bytes:fresh.historyBytes});compactCel(layer,doc.activeFrameId);return true;
+  }
+  applySelectionEffect(plan:SelectionEffectPlan){
+    this.commit();const doc=this.document;if(!plan||plan.baseline!==encodeProject(doc,false))throw new Error('Selection operation source changed. Prepare again.');
+    const fresh=prepareSelectionEffect(doc,plan.rect,plan.options,this.historyBudget);if(!fresh.changedPixels)return false;
+    const layer=activeLayer(doc),before=rasterCel(doc,layer).slice(),frames=linkedFrames(doc,layer),buffer=ensureCel(doc,layer);buffer.set(fresh.pixels);
+    this.record({kind:'bitmap',layerId:layer.id,frameId:doc.activeFrameId,frames,buffer,before,after:fresh.pixels,bytes:fresh.historyBytes});compactCel(layer,doc.activeFrameId);return true;
+  }
+  applySelectionAction(plan:SelectionActionPlan){
+    this.commit();const doc=this.document;
+    if(!plan||plan.baseline!==encodeProject(doc,false))throw new Error('Selection action source changed. Prepare again.');
+    if(plan.options.kind==='export-png'||plan.options.kind==='export-project')throw new Error('Selection exports are download-only.');
+    const fresh=prepareSelectionAction(doc,plan.rect,plan.options,this.historyBudget);if(!fresh.changed)return false;
+    const layer=activeLayer(doc),frames=linkedFrames(doc,layer);
+    if(fresh.options.kind==='clear'){
+      const before=rasterCel(doc,layer).slice(),buffer=ensureCel(doc,layer);buffer.set(fresh.cleared);
+      this.record({kind:'bitmap',layerId:layer.id,frameId:doc.activeFrameId,frames,buffer,before,after:fresh.cleared,bytes:fresh.historyBytes});compactCel(layer,doc.activeFrameId);return true;
+    }
+    const options=fresh.options;
+    return this.changeLayers(()=>{
+      let next=1;while(doc.layers.some(l=>l.id===`layer-${next}`))next++;const id=`layer-${next}`;
+      const copied=fresh.pixels.some(v=>v!==0)?fresh.pixels:new Uint8ClampedArray(0),cels=Object.fromEntries(doc.frames.map(f=>[f.id,(f.id===doc.activeFrameId||options.kind==='cut-layer'&&frames.includes(f.id))?copied:new Uint8ClampedArray(0)]));
+      if(options.kind==='cut-layer'){
+        const source=copyLayer(doc,layer),cleared=fresh.cleared.some(v=>v!==0)?fresh.cleared:new Uint8ClampedArray(0);for(const frame of frames)source.cels[frame]=cleared;
+        doc.layers[doc.layers.indexOf(layer)]=source;
+      }
+      const destination=makeLayer(doc,id,options.name,true,cels,{groupId:layer.groupId,opacity:layer.opacity});
+      doc.layers.splice(doc.layers.findIndex(l=>l.id===layer.id)+1,0,destination);doc.activeLayerId=id;return true;
+    });
+  }
+  applySelectionPaste(plan:SelectionPastePlan){
+    this.commit();const doc=this.document,fresh=regenerateSelectionPaste(doc,plan,this.historyBudget);if(!fresh.changed)return false;
+    const layer=activeLayer(doc);
+    if(fresh.options.destination==='cel'){
+      const before=rasterCel(doc,layer).slice(),frames=linkedFrames(doc,layer),buffer=ensureCel(doc,layer);buffer.set(fresh.pixels);
+      this.record({kind:'bitmap',layerId:layer.id,frameId:doc.activeFrameId,frames,buffer,before,after:fresh.pixels,bytes:fresh.historyBytes});compactCel(layer,doc.activeFrameId);return true;
+    }
+    return this.changeLayers(()=>{let n=1;while(doc.layers.some(l=>l.id===`layer-${n}`))n++;const id=`layer-${n}`,pixels=fresh.pixels.some(v=>v!==0)?fresh.pixels:new Uint8ClampedArray(0),cels=Object.fromEntries(doc.frames.map(f=>[f.id,f.id===doc.activeFrameId?pixels:new Uint8ClampedArray(0)]));doc.layers.splice(doc.layers.indexOf(layer)+1,0,makeLayer(doc,id,fresh.options.name,true,cels,{groupId:layer.groupId}));doc.activeLayerId=id;return true;});
   }
   finishArtwork(kind:'outline'|'speckles',color:RGBA) {this.commit();const doc=this.document,layer=activeLayer(doc);if(!layerEditable(doc,layer))throw new Error('Show and unlock the selected layer before finishing.');const before=rasterCel(doc,layer),next=finishPixels({width:doc.width,height:doc.height,pixels:before},kind,color);for(let p=0;p<next.length;p+=4)if(next[p]!==before[p]||next[p+1]!==before[p+1]||next[p+2]!==before[p+2]||next[p+3]!==before[p+3])this.paint(p/4%doc.width,Math.floor(p/4/doc.width),[next[p],next[p+1],next[p+2],next[p+3]]);return this.commit();}
   selectLayer(id:string) { this.commit(); if(!this.document.layers.some(l=>l.id===id))throw new Error('Layer is missing.');this.document.activeLayerId=id; }
@@ -90,8 +156,8 @@ export class PixelEditor {
     return this.changeLayers(()=>{doc.tags=tags;return true;});
   }
   deleteTag(id:string) {if(!this.document.tags.some(t=>t.id===id))throw new Error('Tag is missing.');return this.changeLayers(()=>{this.document.tags=this.document.tags.filter(t=>t.id!==id);return true;});}
-  private layerState():LayerState {const doc=this.document;return {layers:doc.layers.map(l=>copyLayer(doc,l)),activeLayerId:doc.activeLayerId,frames:doc.frames.map(f=>({...f})),activeFrameId:doc.activeFrameId,groups:doc.groups.map(g=>({...g})),tags:doc.tags.map(t=>({...t}))}; }
-  private restore(state:LayerState) {const doc=this.document;doc.tags=state.tags.map(t=>({...t}));doc.groups=state.groups.map(g=>({...g}));doc.frames=state.frames.map(f=>({...f}));doc.activeFrameId=state.activeFrameId;doc.layers=state.layers.map(l=>copyLayer(doc,l));doc.activeLayerId=state.activeLayerId; }
+  private layerState():LayerState {const doc=this.document;return {width:doc.width,height:doc.height,conversion:doc.conversion,layers:doc.layers.map(l=>copyLayer(doc,l)),activeLayerId:doc.activeLayerId,frames:doc.frames.map(f=>({...f})),activeFrameId:doc.activeFrameId,groups:doc.groups.map(g=>({...g})),tags:doc.tags.map(t=>({...t}))}; }
+  private restore(state:LayerState) {const doc=this.document;doc.width=state.width;doc.height=state.height;if(state.conversion)doc.conversion=state.conversion;else delete doc.conversion;doc.tags=state.tags.map(t=>({...t}));doc.groups=state.groups.map(g=>({...g}));doc.frames=state.frames.map(f=>({...f}));doc.activeFrameId=state.activeFrameId;doc.layers=state.layers.map(l=>copyLayer(doc,l));doc.activeLayerId=state.activeLayerId; }
   private record(command:Command) {
     this.bytes-=this.redoStack.reduce((n,c)=>n+c.bytes,0);this.redoStack=[];
     this.undoStack.push(command);this.bytes+=command.bytes;

@@ -1,7 +1,7 @@
 # EzPix Chrome companion architecture
 
-Current: core/extension **0.32.0**, project v10 writer / v1-v10 readers.
-Read [the current handoff](../../glitchbong/docs/ezpix-continue42.md),
+Current: core/extension **0.68.0**, project v10 writer / v1-v10 readers.
+Read [the current handoff](../../glitchbong/docs/ezpix-continue80.md),
 [product spec](../../glitchbong/docs/ezpix-spec.md) and [core reference](../packages/core/README.md).
 Website UI belongs to sibling `glitchbong` on `ezpix`; this repository uses `main`.
 
@@ -75,5 +75,5 @@ runs do not establish endurance or minimum-device latency.
 [Release verification](release-verification.md) keeps physical Android/iOS/
 stylus, non-Chromium browsers, manual external editors, broader real pages,
 endurance, true peak RAM/VRAM, hosted/offline behavior, packaging/licence/name
-and store approval open. Local commits are authorized by the owner's cleanup
-request; push, hosting/deployment and store publication require new authorization.
+and store approval open. Prior cleanup commits were authorized; this feature continuation
+remains uncommitted. Push, hosting/deployment and store publication require new authorization.

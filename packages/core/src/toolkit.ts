@@ -1,4 +1,7 @@
 import { rasterCel,activeLayer, composite, type PixelDocument } from './document.js';
+import {validateSelectionMask,transformSelectionMask} from './selection-mask.js';
+import {permuteRaster,rotatedSize,type QuarterTurn} from './raster-transform.js';
+export {type QuarterTurn} from './raster-transform.js';
 export type Point={x:number;y:number};
 export type Rect=Point&{width:number;height:number};
 export type Shape='Line'|'Rectangle'|'Ellipse';
@@ -18,8 +21,13 @@ export function shapePoints(shape:Shape,a:Point,b:Point,filled=false):Point[] {
   }
   return result;
 }
-export interface Selection {layerId:string;frameId:string;canvasWidth:number;canvasHeight:number;rect:Rect;baseline:Uint8ClampedArray}
-export type Transform={x:number;y:number;copy:boolean;flipX:boolean;flipY:boolean};
+export interface Selection {layerId:string;frameId:string;canvasWidth:number;canvasHeight:number;rect:Rect;baseline:Uint8ClampedArray;mask?:Uint8Array}
+export type Transform={x:number;y:number;copy:boolean;flipX:boolean;flipY:boolean;rotation?:QuarterTurn;width?:number;height?:number};
+export function selectionSize(selection:Selection,options:Transform){
+ const size=rotatedSize(selection.rect.width,selection.rect.height,options.rotation??0),width=options.width??size.width,height=options.height??size.height;
+ if(![width,height].every(n=>Number.isInteger(n)&&n>=1&&n<=256))throw new Error('Selection size must be whole pixels from 1 to 256.');
+ return {width,height};
+}
 export function captureSelection(doc:PixelDocument,rect:Rect):Selection {
   checkRect(rect,doc.width,doc.height);const layer=activeLayer(doc);if(!layer.visible)throw new Error('Show the selected layer before selecting pixels.');
   return {layerId:layer.id,frameId:doc.activeFrameId,canvasWidth:doc.width,canvasHeight:doc.height,rect:{...rect},baseline:rasterCel(doc,layer).slice()};
@@ -27,14 +35,14 @@ export function captureSelection(doc:PixelDocument,rect:Rect):Selection {
 export function transformSelection(selection:Selection,options:Transform):Uint8ClampedArray {
   const {canvasWidth:w,canvasHeight:h,rect:r,baseline}=selection;
   if(![w,h].every(n=>Number.isInteger(n)&&n>=1&&n<=256)||!(baseline instanceof Uint8ClampedArray)||baseline.length!==w*h*4)throw new Error('Invalid selection.');
-  checkRect(r,w,h);checkRect({...r,x:options.x,y:options.y},w,h);
+  const size=selectionSize(selection,options);checkRect(r,w,h);checkRect({...size,x:options.x,y:options.y},w,h);
   if(![options.copy,options.flipX,options.flipY].every(v=>typeof v==='boolean'))throw new Error('Invalid selection transform.');
-  const output=baseline.slice();
-  if(!options.copy)for(let y=r.y;y<r.y+r.height;y++)output.fill(0,(y*w+r.x)*4,(y*w+r.x+r.width)*4);
-  for(let y=0;y<r.height;y++)for(let x=0;x<r.width;x++){
-    const sx=r.x+(options.flipX?r.width-1-x:x),sy=r.y+(options.flipY?r.height-1-y:y),from=(sy*w+sx)*4,to=((options.y+y)*w+options.x+x)*4;
-    output.set(baseline.subarray(from,from+4),to);
-  }
+  validateSelectionMask(selection);const mask=transformSelectionMask(selection,options),output=baseline.slice();
+  if(!options.copy)for(let y=0;y<r.height;y++)for(let x=0;x<r.width;x++)if(!selection.mask||selection.mask[y*r.width+x])output.fill(0,((y+r.y)*w+r.x+x)*4,((y+r.y)*w+r.x+x)*4+4);
+  const cropped=new Uint8ClampedArray(r.width*r.height*4);
+  for(let y=0;y<r.height;y++)cropped.set(baseline.subarray(((r.y+y)*w+r.x)*4,((r.y+y)*w+r.x+r.width)*4),y*r.width*4);
+  const transformed=permuteRaster(cropped,r.width,r.height,size.width,size.height,options.rotation??0,options.flipX,options.flipY);
+  for(let y=0;y<size.height;y++)for(let x=0;x<size.width;x++)if(!mask||mask[y*size.width+x]){const i=(y*size.width+x)*4;output.set(transformed.subarray(i,i+4),((options.y+y)*w+options.x+x)*4);}
   return output;
 }
 export const DEFAULT_PALETTE=['#39ff14','#a855f7','#ffd700','#f0e6ff','#1e1033','#ff647c','#ff9b54','#49bfff','#15803d','#6042a6','#a16207','#000000'];

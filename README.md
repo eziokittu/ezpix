@@ -1,13 +1,13 @@
 # EzPix by GlitchBong
 
 Local Chrome capture companion and authoritative deterministic pixel-art core.
-Current core/extension **0.32.0**, project writer **v10**, readers **v1-v10**.
+Current core/extension **0.68.0**, project writer **v10**, readers **v1-v10**.
 The website lives in sibling `glitchbong` on branch `ezpix`; this repository uses
 `main`. No runtime AI, model, account or image upload is required.
 
 ## Essential references
 
-- [Current handoff and next bounded phase](../glitchbong/docs/ezpix-continue42.md).
+- [Current handoff and next bounded phase](../glitchbong/docs/ezpix-continue80.md).
 - [Product specification](../glitchbong/docs/ezpix-spec.md) and [full roadmap](../glitchbong/docs/ezpix-rework-plan.md).
 - [Shared core API, file and numerical contracts](packages/core/README.md).
 - [Extension architecture and transfer rules](docs/extension-plan.md).
@@ -47,6 +47,13 @@ core, extension builds and provenance must agree before transfer testing.
 After a configured website production build, run browser scripts sequentially:
 
 ```powershell
+node scripts/phase13abc-independent.mjs
+node scripts/verify-package.mjs
+node scripts/phase13abc-ui.mjs
+node scripts/phase13abc-ui.mjs --crop
+node scripts/phase13abc-ui.mjs --trim
+node scripts/phase13abc-ui.mjs --scale
+node scripts/phase13abc-ui.mjs --scale-down
 node scripts/phase12km-independent.mjs
 node scripts/phase12km-ui.mjs
 node scripts/phase12km-ui.mjs --sort
@@ -68,9 +75,12 @@ labels. Configured SSG uses the existing website environment without copying or
 logging credentials. No runtime dependency or QA reader should be added merely
 to simplify external-reader checks.
 
-145 core/protocol tests and the recorded local build/browser/numerical checks
+170 core/protocol tests and the recorded local build/browser/numerical checks
 pass. Physical devices, manual external apps, longer endurance, true peak RAM/
 VRAM, hosted/offline/update behavior, licence/name decisions and store approval
 remain separate unperformed gates. This is local software, not a released product.
-The owner authorized local implementation/cleanup commits; nothing is pushed,
-deployed or published without separate authorization.
+Earlier cleanup commits were authorized; the current feature continuation remain
+uncommitted. Nothing is pushed, deployed or published without separate authorization.
+
+Phases 13ac-13al add transient binary selection masks with bounded shapes,
+morphology and rectangle algebra; see the current handoff and core contracts.

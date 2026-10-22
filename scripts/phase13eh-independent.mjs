@@ -1,0 +1,22 @@
+﻿import {PixelEditor,createDocument,prepareCanvasGeometry,rasterCel,captureSelection,transformSelection,encodeAseprite,encodePsd,encodeOra} from '../packages/core/dist/index.js';
+import {mkdir,writeFile} from 'node:fs/promises';import {execFileSync} from 'node:child_process';import {resolve} from 'node:path';import {createRequire} from 'node:module';import assert from 'node:assert/strict';
+const out=resolve('artifacts/phase13eh');await mkdir(out,{recursive:true});let seed=137821;const rand=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed;},cases=[];
+for(let i=0;i<160;i++){
+ const w=1+rand()%19,h=1+rand()%19,e=new PixelEditor(createDocument(w,h)),d=e.document;
+ for(let p=0;p<w*h;p++)e.paint(p%w,Math.floor(p/w),[rand()%256,rand()%256,rand()%256,[0,1,128,255][rand()%4]]);e.commit();e.addFrame();e.linkCel('frame-1');e.addFrame(true);e.addFrame();e.selectFrame('frame-1');
+ const options=i%2?{kind:'rotate',rotation:[90,180,270][rand()%3]}:{kind:'flip',axis:i%4?'vertical':'horizontal'},before=d.frames.map(f=>Buffer.from(d.layers[0].cels[f.id]).toString('base64'));
+ e.applyCanvasGeometry(prepareCanvasGeometry(d,options));for(let f=0;f<d.frames.length;f++)cases.push({w,h,before:before[f],after:Buffer.from(d.layers[0].cels[d.frames[f].id]).toString('base64'),selection:false,options:options.kind==='flip'?{flipX:options.axis==='horizontal',flipY:options.axis==='vertical'}:options});
+}
+for(let i=0;i<200;i++){
+ const e=new PixelEditor(createDocument(13,11)),d=e.document;for(let p=0;p<143;p++)e.paint(p%13,Math.floor(p/13),[rand()%256,rand()%256,rand()%256,[0,1,128,255][rand()%4]]);e.commit();
+ const rect={x:rand()%5,y:rand()%5,width:1+rand()%7,height:1+rand()%5},s=captureSelection(d,rect),width=1+rand()%13,height=1+rand()%11,options={rotation:[0,90,180,270][rand()%4],width,height,x:rand()%(14-width),y:rand()%(12-height),copy:!!(i%2),flipX:!!(i%3),flipY:!!(i%5)},after=transformSelection(s,options);
+ cases.push({w:13,h:11,before:Buffer.from(s.baseline).toString('base64'),after:Buffer.from(after).toString('base64'),selection:true,rect,options});e.applySelection(s,options);assert.deepEqual(rasterCel(d,d.layers[0]),after);
+}
+const file=resolve(out,'fixtures.json');await writeFile(file,JSON.stringify(cases));const report=JSON.parse(execFileSync('python',['scripts/phase13eh-reference.py',file],{encoding:'utf8',windowsHide:true}));
+const require=createRequire(import.meta.url),Ase=require(resolve('artifacts/phase8b/independent/node_modules/ase-parser')),psd=require(resolve('artifacts/phase8c/independent/node_modules/ag-psd'));psd.initializeCanvas(()=>{throw Error('No canvas');},(width,height)=>({width,height,data:new Uint8ClampedArray(width*height*4)}));
+const e=new PixelEditor(createDocument(5,4)),d=e.document;for(let p=0;p<20;p++)e.paint(p%5,Math.floor(p/5),[p+1,p+2,p+3,[0,1,128,255][p%4]]);e.commit();e.addFrame(true);e.paint(0,0,[33,44,55,255]);e.commit();e.selectFrame('frame-1');
+for(const [i,options]of [{kind:'rotate',rotation:90},{kind:'rotate',rotation:270},{kind:'rotate',rotation:180},{kind:'flip',axis:'horizontal'},{kind:'flip',axis:'vertical'}].entries()){
+ e.applyCanvasGeometry(prepareCanvasGeometry(d,options));const ase=new Ase(Buffer.from(encodeAseprite(d)),'transform');ase.parse();assert.equal(ase.width,d.width);assert.equal(ase.height,d.height);for(let f=0;f<2;f++)assert.deepEqual([...ase.frames[f].cels[0].rawCelData],[...d.layers[0].cels[d.frames[f].id]]);
+ const external=psd.readPsd(encodePsd(d).bytes,{useImageData:true,skipThumbnail:true});assert.deepEqual([...external.children[0].imageData.data],[...rasterCel(d,d.layers[0])]);const path=resolve(out,`transform-${i}.ora`);await writeFile(path,(await encodeOra(d)).bytes);const rgba=JSON.parse(execFileSync('python',['-c',"import io,json,sys,zipfile,xml.etree.ElementTree as E;from PIL import Image;z=zipfile.ZipFile(sys.argv[1]);p=E.fromstring(z.read('stack.xml')).find('stack/layer').attrib['src'];im=Image.open(io.BytesIO(z.read(p))).convert('RGBA');print(json.dumps([im.width,im.height,list(im.tobytes())]))",path],{encoding:'utf8',windowsHide:true}));assert.deepEqual(rgba,[d.width,d.height,[...rasterCel(d,d.layers[0])]]);
+}
+report.native='ase-parser both frames; ag-psd and Python zipfile/XML/Pillow selected frame, all five sprite permutations';await writeFile(resolve(out,'independent-result.json'),JSON.stringify(report,null,2));console.log('PASS '+JSON.stringify(report));

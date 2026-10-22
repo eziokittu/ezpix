@@ -1,4 +1,4 @@
-# @ezpix/core 0.32.0
+# @ezpix/core 0.68.0
 
 Original deterministic RGBA editor and image conversion engine. No runtime
 dependencies or inference. Build with the workspace `npm run build`.
@@ -302,3 +302,293 @@ used, retain the first swatch so the palette stays valid. Cap is 256; overflow
 rejects before mutation, and duplicate-only/unchanged results create no history.
 Pixels, cel buffers/links, source/recipe, groups/tags and references do not change.
 Writer stays v10. No palette groups, locks, indexed mode or new dependencies.
+
+## Canvas geometry (13a-13c)
+
+`prepareCanvasGeometry(doc, options, historyBudget?)` stages `resize`, `crop` or
+`trim`; `PixelEditor.applyCanvasGeometry(plan)` revalidates the source/settings
+and regenerates all output. Dimensions are integers 1-256. Resize anchors are
+`start`, `center`, `end` on each axis; center uses floor((new-old)/2), then
+integer offsets -256..256 move artwork right/down. Old-canvas position at the
+new origin is minus this displacement. Crop uses old-canvas x/y and a fully
+contained positive rectangle. Padding is zero RGBA; clipping copies retained
+bytes exactly, including partial alpha and hidden RGB. No resampling is used.
+
+`storedArtworkBounds`/trim uses the union of any nonzero RGBA in every stored
+cel, including hidden/locked layers/groups and all frames. References and source
+pixels do not set bounds. An all-zero document keeps its dimensions. It does
+not trim based on the visible composite or alpha alone. Clipped counts include
+any nonzero RGBA, once per linked buffer per layer. Preview is the transformed
+selected-frame composite without references, never a live document mutation.
+
+Each layer maps a buffer once, retaining linked versus independent equivalence
+classes even when clipping makes cels empty. Groups, tags, timing, selection IDs,
+palette, references and original source/crop/sampling stay intact. Recipe output
+width/height follow the new canvas to retain v10 reader validity. Retuning still
+regenerates from source, not transformed manual edits. Undo restores the exact
+prior geometry, buffers and recipe dimensions. Project writer stays v10.
+
+Dense-equivalent cels remain capped at 4 MiB before allocation. Preflight also
+checks an undo estimate: unique before buffers + one output raster per nonempty
+same-layer buffer + two structural metadata estimates + 2048 bytes. Operations
+that cannot retain their one undo command within the editor budget reject before
+transformed raster allocation. Older commands may be evicted under the existing
+8 MiB/100-command history limit. This is a conservative history bound, not total
+heap/peak-memory or latency measurement. Plans retain bounded project fingerprints
+without original source pixels and a single at-most-256-square preview. Output
+geometry/preview fields are ignored on Apply; validated frozen copied settings
+are authoritative. Identity geometry is a no-op and keeps redo/sparse buffers.
+
+## Nearest-neighbour sprite scaling (13d)
+
+`prepareCanvasGeometry(doc, {kind:'scale', width, height})` stages whole-sprite
+scaling; `PixelEditor.applyCanvasGeometry` applies it via the same validated
+structural-history path. This is a separate Image / Scale sprite command. Each
+output (x,y) copies the complete source RGBA at
+`floor((2*x+1)*oldWidth/(2*width)), floor((2*y+1)*oldHeight/(2*height))`.
+These integer-ratio pixel-center samples use exact midpoint ties toward the
+higher coordinate. No colour/alpha blending, quantization or palette mapping.
+Dimensions are independent integers 1-256. Integer enlargement replicates pixels;
+noninteger changes can produce uneven runs, and reduction can omit artwork and
+hidden RGB. Copied pixels retain exact partial alpha/hidden RGB. No reversible
+resampling promise is made beyond editor Undo.
+
+All layers/frames, including hidden/locked artwork, use the same sample mapping.
+Same-layer linked/independent/empty buffer classes, metadata and active IDs are
+preserved; outputs with only zeros compact without merging independent cels.
+Sparse empty inputs never allocate rasters. Selected-frame preview samples the
+composite (equivalent to composing the same per-layer samples); references are
+excluded. There is no canvas clipping count for scaling; zero clippedPixels is
+not a claim that downsampling retains all source pixels. The UI explicitly warns
+that downsampling omits details. References/source pixels and source recipe crop/
+sampling stay unchanged; recipe output dimensions follow the new canvas for v10
+reader validity. One Undo restores original buffers/dimensions/recipe, and later
+pixel/structural history remains coherent. Same-size scale is an exact no-op.
+
+Existing 4 MiB dense-equivalent cel and conservative one-command undo preflight,
+regenerated Apply, source fingerprint/revision guards and history eviction rules
+apply. No new project schema, area/bilinear sampling, masks, rotation or effects.
+Bounds do not establish measured peak heap/RAM/VRAM, minimum-device latency or
+long endurance.
+
+
+## Phase 13e-13h exact raster transforms
+
+`prepareCanvasGeometry` also accepts `{kind:'rotate',rotation:90|180|270}`
+(clockwise in screen coordinates) and `{kind:'flip',axis:'horizontal'|'vertical'}`.
+90/270 swap dimensions. Source `(x,y)` maps clockwise to `(H-1-y,x)`,
+counterclockwise to `(y,W-1-x)`, or 180 to `(W-1-x,H-1-y)`.
+Flips map to `(W-1-x,y)` or `(x,H-1-y)`. Every stored RGBA pixel moves intact,
+including hidden RGB. Existing copied settings, fingerprint, regeneration,
+all-layer/frame/link preservation and pre-allocation cel/history checks apply.
+References and source/crop stay unchanged; recipe output size follows canvas.
+Rotations/flips are explicit commands even for symmetric/empty artwork.
+
+`Transform` adds optional `rotation:0|90|180|270`, `width`, `height`.
+`selectionSize` returns rotated dimensions unless an explicit output size is set.
+Order: rotate, pixel-center nearest sample to output size, flip on output axes,
+then replace the destination. Missing fields retain old move/copy/flip behavior.
+Output bounds must fit; the core rejects out-of-canvas destinations without clipping.
+UI rotates the current requested size and clamps the destination into the canvas;
+if rotated size cannot fit, the previous preview is retained with an explanation.
+Move clears the original rectangle before writing from the immutable snapshot;
+copy retains original pixels outside destination. Full RGBA replaces destination,
+including transparent pixels. Sampling ties go right/bottom; reduction is lossy.
+Apply binds to the selected layer/frame/dimensions/complete cel baseline and
+editable ancestry. It updates that cel's linked frames, preserving independent
+cels and other layers. One bitmap history command is preflighted at three dense
+cel buffers plus metadata; too-small undo budgets reject before mutation.
+Identity selection results preserve history/redo. Undo history is not serialized.
+No arbitrary-angle interpolation, masks, pivots, shear or perspective is included.
+
+
+## Rectangular selection fill and inset stroke (13i/13j)
+
+`prepareSelectionPaint(doc, rect, options, historyBudget?)` accepts
+`{kind:'fill',color:[r,g,b,a]}` or `{kind:'stroke',color:[r,g,b,a],thickness}`.
+RGBA is four integer bytes 0-255; stroke thickness is an integer 1-256.
+The original rectangle must fit the canvas. Fill replaces every pixel. Stroke
+replaces pixels whose minimum distance to an inside rectangle edge is less than
+thickness; its square-cornered bands never extend outside the rectangle. When
+bands overlap, stroke fills the rectangle. Alpha zero retains the chosen RGB;
+this is full-byte replacement, with no blending, mask or colour quantization.
+
+The staged plan copies/freezes rectangle/options/colour and captures a full
+project fingerprint. It contains selected-cel pixels and selected-frame composite
+preview without references, changed-pixel count, linked-frame count and a
+conservative history estimate. Invalid, hidden/locked/ancestor-ineligible and
+stale sources reject. Apply regenerates pixels using copied parameters, ignoring
+mutated preview/pixels/counts/estimates. Only selected cel and its linked frames
+change. Independent cels/layers, source, recipe, palettes, references and document
+metadata remain intact. No-op preserves redo and empty buffers. Bitmap history
+preflight counts three full cel buffers plus 256 bytes and 64 per linked frame;
+changed commands reject before output allocation if capacity is exceeded.
+Default history remains 8 MiB/100 commands; estimates are not peak-heap measurements.
+
+The UI operates on the original selected rectangle and explicitly replaces the
+pending transform only on Apply. Close returns to the original pending preview.
+The RGBA fields begin with drawing RGB and alpha 255. Editing any field invalidates
+the stage; Apply is explicit and disabled for no-op output. There is no schema
+change or secondary-colour/mask infrastructure in these phases.
+
+
+## Original-rectangle layer, clear and export actions (13k-13o)
+
+`prepareSelectionAction(doc, rect, options, historyBudget?)` stages `copy-layer`,
+`cut-layer`, `clear`, `export-png` or `export-project`. All except clear take a
+trimmed 1-80 character name. Rectangle must fit the canvas. Settings/rectangle
+are copied/frozen and a full source fingerprint binds Prepare to Apply/export.
+Outputs/preview/estimates are regenerated; mutable stage buffers cannot inject
+pixels. Mutations require visible editable ancestry. Read-only exports allow
+visible locked layers; hidden ancestry rejects. All actions read original raw
+selected-cel RGBA, with no opacity/group bake, masks, transforms or quantization.
+
+Copy inserts/selects a new visible unlocked layer immediately above the source,
+inheriting source group/opacity. Only the selected frame receives the extracted
+rectangle at its original canvas coordinates; other frames get distinct sparse
+empty cels. Source buffers remain untouched. Cut also clears RGBA to zero on the
+source linked-frame class and mirrors that class in the destination. Other
+frames remain distinct empty destination cels. This retains the composite for
+all frames while preserving independent source cels. Even an empty copy/cut
+creates a reviewed new layer. One structural Undo restores exact old buffers.
+
+Layer/cel preflight runs before output allocation. Conservative structural
+history counts unique retained old buffers, one dense destination (plus one
+dense cleared source for cut), before/after layer/frame/group/tag metadata and
+2048 bytes. Too-large commands reject; default history stays 8 MiB/100 commands.
+Clear writes zero RGBA inside the rectangle on selected/linked cels; other
+pixels and independent frames stay unchanged. Clear uses the existing three-
+dense-buffer bitmap estimate plus frame metadata. No-op retains sparse buffers,
+redo and history. Empty outputs preserve link classes; hidden RGB remains dense.
+These are correctness/accounting bounds, without measured peak-memory claims.
+
+`exportSelectionAction(doc, plan)` asynchronously regenerates tightly cropped
+PNG or .ezpix bytes. PNG reuses the existing bounded RGBA PNG encoder directly,
+retaining hidden RGB and partial alpha exactly without browser canvas encoding.
+Fingerprint checks before and after compression reject stale async exports.
+UI cancellation/settings changes invalidate pending downloads with an epoch.
+`selectionProject` builds one independent frame/layer, retaining exact cropped
+RGBA, palette, source layer name and selected-frame duration. Project name comes
+from options; opacity is 255 and no groups/tags/references/source/recipe/other
+frames/undo are retained. Exports are download-only and preserve current document,
+selection preview, history and redo. File names are sanitized in browser UI.
+No schema, host permission, clipboard dependency, upload or runtime dependency
+was added. The editor resets selection-action dialogs on preview cancellation
+and document replacement to avoid carrying a stale dialog into a new selection.
+
+
+## Project paste and session copy/cut (13p-13t)
+
+`prepareSelectionPaste(target,source,options,historyBudget?)` accepts sourceMode
+selection (exactly one layer/frame) or project (explicit source layer/frame),
+destination new-layer or cel, integer x/y and a trimmed 1-80 character name.
+The complete source raster must fit; no clipping, resampling, blend or palette
+mapping. Raw RGBA includes transparent replacement and exact hidden RGB. Source
+opacity/locks/groups/palette/timing/tags/references/recipe are excluded from paste.
+Destination palette/timing/source/reference/metadata remain intact.
+
+New layers are visible/unlocked, opacity 255, in the selected target layer's
+group, immediately above it. Only the current frame gets pasted pixels; all
+other frames have independent empty cels. Current-cel paste updates its linked
+frame class, retaining independent frames and other layers. The target layer and
+ancestry must be visible/editable. New-layer count/dense-cel/history preflight
+runs before output allocation. Structural history counts unique old buffers,
+one dense output and metadata plus 2048 bytes; existing cel uses the established
+three-dense-buffer bitmap estimate. No-op retains history/redo/sparse buffers.
+One Undo restores dimensions, buffers, links and active IDs; geometry never changes.
+
+Plans copy/freeze options and capture the target serialized fingerprint plus a
+minimal single-layer/frame source snapshot string. The snapshot excludes retained
+source/reference bytes and stays independent of later input-object changes.
+Apply regenerates outputs from the canonical snapshot; tampered output/preview/
+estimates cannot inject pixels. Original source choices are stored in options;
+regeneration normalizes IDs to the extracted snapshot's independent layer/frame.
+The UI checks initial target identity/revision/fingerprint, invalidates stages on
+settings/source changes, guards async file reads on replace/unmount, and rejects
+files over 24 MiB before text/decode. Existing bounded v1-v10 readers are reused.
+
+Session Copy uses existing cropped selection-project extraction without artwork
+or history changes and retains a pending transform. Session Cut pre-encodes that
+snapshot, then applies guarded zero-RGBA clear to selected/linked source cels.
+A failed clear preserves the prior buffer. Cut consumes the pending preview;
+Undo restores artwork but leaves the copied buffer. One string slot (at most a
+256x256 one-layer/frame project plus bounded palette/metadata) stays in Editor
+memory across project replacement; Clear buffer or page reload/navigation drops
+it. It is never written to system clipboard, localStorage, IndexedDB or project
+files. Paste session buffer uses the same staged paste UI/core. Pending selections
+must be explicitly resolved before opening either file or buffer paste.
+
+
+## Staged rectangular gradients/patterns/colour edits (13u-13ab)
+
+`prepareSelectionEffect(doc,rect,options,historyBudget?)` and
+`PixelEditor.applySelectionEffect` support eight independent operation families.
+All use original rectangle/local coordinates, full stored RGBA, copied/frozen
+options/rect/colour arrays, serialized source fingerprint, regenerated Apply,
+visible/editable ancestry, selected/linked cel updates and one bitmap Undo.
+Exterior pixels, independent frames, palette, source/recipe, references and
+metadata remain intact. Changed commands preflight three dense buffers plus
+command/link metadata before output allocation. No-op retains sparse buffers,
+history and redo. Bounds remain 1-256px and existing 4 MiB cel / 8 MiB history.
+
+Linear `gradient` interpolates start/end straight encoded RGBA independently at
+x/(W-1) or y/(H-1), nearest byte with exact half ties upward. One-pixel axes use
+start. No gamma transfer or source-over blend. `dither-gradient` uses the same
+linear progress but selects a complete endpoint with a 4x4 Bayer matrix anchored
+at the rectangle origin; threshold is (2*Bayer+1)/32, choose end on >=. Force exact
+start/end at t=0/1. `radial` uses squared elliptical distance from rectangle center:
+min(1,((2*x-(W-1))/max(1,W-1))^2+((2*y-(H-1))/max(1,H-1))^2), then the same RGBA
+rounding. It is squared-radius interpolation, not a linear Euclidean radial ramp.
+Even rectangles lack an exact center sample; 1x1 uses start. All integer runtime
+arithmetic stays below 2^53 inside canvas bounds.
+
+`checker` chooses complete start/end RGBA by parity of floor(x/cellWidth)+
+floor(y/cellHeight), dimensions 1-256, local origin; partial cells remain.
+`replace` requires an exact four-byte match (including alpha/hidden RGB) and
+replaces full RGBA. No tolerance. `grayscale` uses floor((77R+150G+29B+128)/256),
+writing RGB and preserving alpha. `invert` writes 255-R/G/B and preserves alpha.
+Both transform hidden RGB too and do not create an indexed/grayscale document
+mode or effect stack. `alpha` takes integer percent 0-200, writes
+min(255,floor((alpha*percent+50)/100)), retaining RGB even when alpha reaches zero.
+
+The UI has explicit numeric RGBA endpoints/match/replacement, axis, checker size,
+alpha percent and endpoint-swap controls. Fields invalidate stages. Prepare/Close
+preserve pending transforms; Apply consumes them. Raw project/native outputs stay
+exact. Canvas previews and legacy canvas PNG export can round partial-alpha RGB
+or discard hidden RGB; use .ezpix/raw native workflows for exact stored bytes.
+Long Select menus now scroll so all commands remain reachable in short viewports.
+No schema, masks, runtime dependency, clipboard permission or publication change.
+
+## Phases 13ac-13al: transient binary selection masks
+
+Selection.mask is optional Uint8Array of exactly rect.width*rect.height bytes,
+all 0 or 1. Undefined selects the complete rectangle; full results canonicalize
+to undefined and empty masks are valid. Masks never enter v10 project/recovery
+files. editSelectionMask returns a copied rectangle and new membership without
+changing art, baseline or pending transform. Selected transparent pixels still
+replace all four destination bytes; unselected pixels do not write. Move clears
+only selected source pixels, then reads immutable baseline for overlap safety.
+The shared inverse mapping rotates, nearest-scales and flips both RGBA and mask.
+Applying uses existing stale/lock/link/budget checks and one bitmap Undo; empty
+and identical outputs preserve redo, allocation and history.
+
+Ellipse includes local pixel center (x+.5,y+.5) when
+(2x+1-W)^2*H^2+(2y+1-H)^2*W^2 <= W^2*H^2.
+Diamond uses abs(2x+1-W)*H+abs(2y+1-H)*W <= W*H.
+Invert is bounded complement. Grow is union with four direct neighbours; shrink
+is intersection with them; border is source minus shrink. Each is one simultaneous
+pass, outside=0, clipped to original bounds. Boolean union/subtract/intersect/XOR
+uses a validated positive local integer rectangle within those same bounds.
+No antialiasing, feathering, lasso, wand or full-canvas expansion. Shape commands
+replace membership; Reset rectangular mask re-enables rectangle-only workflows.
+
+Website Transform exposes all operations, membership count and a separate blue
+canvas overlay. It preserves pending movement/scale when membership changes.
+Rectangle-only fills, colour edits, copy/cut buffer, extraction and selection
+exports explicitly disable for non-full masks, in both menus and Transform.
+Whole-document save/export settle previews through the existing Apply/Discard
+prompt. The overlay is UI only and never enters the art or exports. Mask storage
+is at most 64 KiB; nearest transformation uses two further 64 KiB temporaries.
+RGBA source/output temporaries and one bitmap history retain existing canvas,
+cel and history limits. This is a bounded allocation statement, not a measured
+process-memory or latency guarantee.
