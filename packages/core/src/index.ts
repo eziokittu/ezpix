@@ -1,4 +1,21 @@
+export * from './cel-grid.js';
+export * from './reference-overlay.js';
+export * from './asset-export.js';
+import {authoredState,restoreAuthored,regenerateAuthored,type AuthoredPlan,type AuthoredState} from './authored-workflows.js';
+export * from './authored-workflows.js';
+export * from './authored-metadata.js';
+export * from './bitmap-text.js';
+import {regenerateReferenceTransform,type ReferenceTransformPlan} from './reference-transform.js';
+export * from './reference-transform.js';
+import {regenerateLayerWorkflow,type LayerWorkflowPlan} from './layer-workflows.js';
+export * from './layer-workflows.js';
+export * from './layer-render.js';
+import {validateBlendMode,type BlendMode} from './blend.js';
+export * from './blend.js';
+import {regenerateCoverage,type CoveragePlan} from './coverage.js';
+export * from './coverage.js';
 export * from './selection-mask.js';
+export * from './canvas-tools.js';
 import {regenerateStudio,type StudioPlan} from './studio.js';
 export * from './studio.js';
 export * from './commands.js';
@@ -45,7 +62,7 @@ export * from './tiles.js';
 export * from './quick.js';
 export type Delta = { index: number; before: number[]; after: number[] };
 type LayerState = { width:number;height:number;conversion:PixelDocument['conversion'];layers: Layer[]; activeLayerId: string;frames:Frame[];activeFrameId:string;groups:LayerGroup[];tags:AnimationTag[] };
-type Command = { bytes: number } & ({kind:'references';before:ReferenceState;after:ReferenceState}|{ kind:'pixels'; layerId:string;frameId:string;frames:string[];buffer:Uint8ClampedArray;changes:Delta[] } | {kind:'bitmap';layerId:string;frameId:string;frames:string[];buffer:Uint8ClampedArray;before:Uint8ClampedArray;after:Uint8ClampedArray} | {kind:'layers'; before:LayerState; after:LayerState}|{kind:'palette';before:string[];after:string[]});
+type Command = { bytes: number } & ({kind:'authored';before:AuthoredState;after:AuthoredState}|{kind:'references';before:ReferenceState;after:ReferenceState}|{ kind:'pixels'; layerId:string;frameId:string;frames:string[];buffer:Uint8ClampedArray;changes:Delta[] } | {kind:'bitmap';layerId:string;frameId:string;frames:string[];buffer:Uint8ClampedArray;before:Uint8ClampedArray;after:Uint8ClampedArray} | {kind:'layers'; before:LayerState; after:LayerState}|{kind:'palette';before:string[];after:string[]});
 /** A gesture is one command; one entry per changed pixel, including mirrored pixels. */
 export class PixelEditor {
   readonly document: PixelDocument;
@@ -58,14 +75,17 @@ export class PixelEditor {
   get canUndo() { return this.undoStack.length > 0; }
   get canRedo() { return this.redoStack.length > 0; }
   get historyBytes() { return this.bytes; }
+  applyAuthored(plan:AuthoredPlan){this.commit();const fresh=regenerateAuthored(this.document,plan,this.historyBudget);if(!fresh.plan.changed)return false;const before=authoredState(this.document);restoreAuthored(this.document,fresh.state);this.record({kind:'authored',before,after:authoredState(this.document),bytes:fresh.plan.historyBytes});return true;}
+  applyLayerWorkflow(plan:LayerWorkflowPlan){this.commit();const fresh=regenerateLayerWorkflow(this.document,plan,this.historyBudget);if(!fresh.plan.changed)return false;return this.changeLayers(()=>{this.document.layers=fresh.layers;return true;});}
   applyStudio(plan:StudioPlan){this.commit();const fresh=regenerateStudio(this.document,plan,this.historyBudget);if(!fresh.changed)return false;return this.changeLayers(()=>{this.document.layers=fresh.layers;this.document.frames=fresh.frames;this.document.tags=fresh.tags;return true;});}
   private referenceState():ReferenceState {return {references:this.document.references.map(r=>({...r})),activeReferenceId:this.document.activeReferenceId};}
-  private changeReferences(after:ReferenceState){this.commit();validateReferences(after);const before=this.referenceState();if(before.activeReferenceId===after.activeReferenceId&&before.references.length===after.references.length&&before.references.every((r,i)=>r.id===after.references[i].id&&r.name===after.references[i].name&&r.pixels===after.references[i].pixels))return false;this.document.references=after.references;this.document.activeReferenceId=after.activeReferenceId;const buffers=new Set([...before.references,...after.references].map(r=>r.pixels));this.record({kind:'references',before,after,bytes:[...buffers].reduce((n,p)=>n+p.byteLength,0)+(before.references.length+after.references.length)*256});return true;}
+  private changeReferences(after:ReferenceState){this.commit();validateReferences(after);const before=this.referenceState();if(before.activeReferenceId===after.activeReferenceId&&before.references.length===after.references.length&&before.references.every((r,i)=>r.id===after.references[i].id&&r.name===after.references[i].name&&r.pixels===after.references[i].pixels&&JSON.stringify(r.placement)===JSON.stringify(after.references[i].placement)))return false;this.document.references=after.references;this.document.activeReferenceId=after.activeReferenceId;const buffers=new Set([...before.references,...after.references].map(r=>r.pixels));this.record({kind:'references',before,after,bytes:[...buffers].reduce((n,p)=>n+p.byteLength,0)+(before.references.length+after.references.length)*256});return true;}
   addReference(image:Omit<ReferenceImage,'id'>){let n=1;while(this.document.references.some(r=>r.id===`reference-${n}`))n++;const id=`reference-${n}`,reference={...image,id,name:image.name.trim()};validateReferences({references:[...this.document.references,reference],activeReferenceId:id});return this.changeReferences({references:[...this.document.references,{...reference,pixels:reference.pixels.slice()}],activeReferenceId:id});}
+  applyReferenceTransform(plan:ReferenceTransformPlan){const fresh=regenerateReferenceTransform(this.document,plan,this.historyBudget);if(!fresh.changed)return false;const image=fresh.image;return this.changeReferences({references:this.document.references.map(r=>r.id===image.id?image:r),activeReferenceId:this.document.activeReferenceId});}
   selectReference(id:string){return this.changeReferences({references:this.document.references.slice(),activeReferenceId:id});}
   renameReference(id:string,name:string){if(!this.document.references.some(r=>r.id===id))throw new Error('Reference image is missing.');return this.changeReferences({references:this.document.references.map(r=>r.id===id?{...r,name:name.trim()}:r),activeReferenceId:this.document.activeReferenceId});}
   removeReference(id:string){if(!this.document.references.some(r=>r.id===id))throw new Error('Reference image is missing.');const references=this.document.references.filter(r=>r.id!==id);return this.changeReferences({references,activeReferenceId:this.document.activeReferenceId===id?references[0]?.id??null:this.document.activeReferenceId});}
-  setPalette(colors:readonly string[]) {this.commit();const after=validatePalette(colors),before=this.document.palette.slice();if(before.join()===after.join())return false;this.document.palette=after;this.record({kind:'palette',before,after,bytes:(before.length+after.length)*64});return true;}
+  setPalette(colors:readonly string[]) {this.commit();const after=validatePalette(colors),before=this.document.palette.slice();if(before.join()===after.join())return false;if(this.document.paletteOrganisation&&!before.every((c,i)=>after[i]===c))throw new Error('Use Authored studio palette organisation to preserve groups and locks.');this.document.palette=after;this.record({kind:'palette',before,after,bytes:(before.length+after.length)*64});return true;}
   applyPaletteRamp(plan:PaletteRampPlan){this.commit();if(!plan||plan.baseline!==encodeProject(this.document,false))throw new Error('Ramp source changed. Prepare again.');return this.setPalette(preparePaletteRamp(this.document,plan.options).colors);}
   applyPaletteOperation(plan:PaletteOperationPlan){this.commit();if(!plan||plan.baseline!==encodeProject(this.document,false))throw new Error('Palette source changed. Prepare again.');return this.setPalette(preparePaletteOperation(this.document,plan.options).colors);}
   applyCanvasGeometry(plan:CanvasGeometryPlan){
@@ -77,6 +97,7 @@ export class PixelEditor {
     return this.changeLayers(()=>{doc.width=fresh.width;doc.height=fresh.height;doc.layers=layers;if(conversion)doc.conversion=conversion;else delete doc.conversion;return true;});
   }
   shape(kind:Shape,a:Point,b:Point,color:RGBA,filled=false) {for(const p of shapePoints(kind,a,b,filled))this.paint(p.x,p.y,color);}
+  applyCoverage(plan:CoveragePlan){this.commit();const doc=this.document,fresh=regenerateCoverage(doc,plan,this.historyBudget);if(!fresh.changedPixels)return false;const layer=activeLayer(doc),before=rasterCel(doc,layer).slice(),frames=linkedFrames(doc,layer),buffer=ensureCel(doc,layer);buffer.set(fresh.pixels);this.record({kind:'bitmap',layerId:layer.id,frameId:doc.activeFrameId,frames,buffer,before,after:fresh.pixels,bytes:fresh.historyBytes});compactCel(layer,doc.activeFrameId);return true;}
   applyDrawing(plan:DrawingPlan){
     this.commit();const doc=this.document;if(!plan||plan.baseline!==encodeProject(doc,false))throw new Error('Drawing source changed. Start the stroke again.');
     const fresh=prepareDrawing(doc,plan.path,plan.options,this.historyBudget);if(!fresh.changedPixels)return false;
@@ -124,7 +145,7 @@ export class PixelEditor {
         const source=copyLayer(doc,layer),cleared=fresh.cleared.some(v=>v!==0)?fresh.cleared:new Uint8ClampedArray(0);for(const frame of frames)source.cels[frame]=cleared;
         doc.layers[doc.layers.indexOf(layer)]=source;
       }
-      const destination=makeLayer(doc,id,options.name,true,cels,{groupId:layer.groupId,opacity:layer.opacity});
+      const destination=makeLayer(doc,id,options.name,true,cels,{groupId:layer.groupId,opacity:layer.opacity,blendMode:layer.blendMode});
       doc.layers.splice(doc.layers.findIndex(l=>l.id===layer.id)+1,0,destination);doc.activeLayerId=id;return true;
     });
   }
@@ -179,8 +200,8 @@ export class PixelEditor {
   private changeLayers(change:()=>boolean) {
     this.commit();const before=this.layerState();if(!change())return false;const after=this.layerState();
     // Snapshots share pixel buffers; budget counts every buffer retained by a command.
-    const buffers=new Set([...before.layers,...after.layers].flatMap(l=>Object.values(l.cels)));
-    this.record({kind:'layers',before,after,bytes:[...buffers].reduce((n,p)=>n+p.byteLength,0)+(before.layers.length+after.layers.length+before.frames.length+after.frames.length+before.groups.length+after.groups.length+before.tags.length+after.tags.length)*256});return true;
+    const buffers=new Set([...before.layers,...after.layers].flatMap(l=>[...Object.values(l.cels),...(l.mask?[l.mask.values]:[])]));
+    this.record({kind:'layers',before,after,bytes:[...buffers].reduce((n,p)=>n+p.byteLength,0)+[...before.layers,...after.layers].reduce((n,l)=>n+(l.effects?.length??0)*128+(l.text?1024:0),0)+[...before.groups,...after.groups].reduce((n,g)=>n+(g.effects?.length??0)*128,0)+(before.layers.length+after.layers.length+before.frames.length+after.frames.length+before.groups.length+after.groups.length+before.tags.length+after.tags.length)*256});return true;
   }
   addLayer(duplicate=false) {
     if(this.document.layers.length>=MAX_LAYERS)throw new Error('A project supports at most 16 layers.');
@@ -188,7 +209,7 @@ export class PixelEditor {
     return this.changeLayers(()=>{const doc=this.document,current=activeLayer(doc);let next=1;while(doc.layers.some(l=>l.id===`layer-${next}`))next++;const id=`layer-${next}`;
       const clones=new Map<Uint8ClampedArray,Uint8ClampedArray>();const clone=(p:Uint8ClampedArray)=>{if(!clones.has(p))clones.set(p,p.slice());return clones.get(p)!;};
       const layer=makeLayer(doc,id,duplicate?`${current.name.slice(0,70)} copy`:`Layer ${doc.layers.length+1}`,true,Object.fromEntries(doc.frames.map(f=>[f.id,duplicate?clone(current.cels[f.id]):new Uint8ClampedArray(0)])));
-      doc.layers.splice(doc.layers.indexOf(current)+1,0,layer);doc.activeLayerId=id;layer.groupId=current.groupId;if(duplicate){layer.locked=current.locked;layer.opacity=current.opacity;}return true;});
+      doc.layers.splice(doc.layers.indexOf(current)+1,0,layer);doc.activeLayerId=id;layer.groupId=current.groupId;if(duplicate){layer.locked=current.locked;layer.opacity=current.opacity;layer.blendMode=current.blendMode;if(current.mask)layer.mask={...current.mask,values:current.mask.values.slice()};if(current.effects)layer.effects=current.effects.map(e=>({...e}));if(current.text)layer.text=structuredClone(current.text);if(current.adjustment)layer.adjustment=true;}return true;});
   }
   deleteLayer() {
     if(this.document.layers.length===1)throw new Error('Keep at least one layer.');
@@ -208,7 +229,7 @@ export class PixelEditor {
     const group=this.document.groups.find(g=>g.id===id);if(!group)throw new Error('Group is missing.');if(Object.entries(patch).every(([k,v])=>group[k as keyof LayerGroup]===v))return false;
     return this.groupOperation(doc=>Object.assign(doc.groups.find(g=>g.id===id)!,patch));
   }
-  ungroup(id:string){return this.groupOperation(doc=>{const g=doc.groups.find(g=>g.id===id);if(!g)throw new Error('Group is missing.');if(!g.visible||g.locked||g.opacity!==255)throw new Error('Show, unlock and set group opacity to 100% before ungrouping.');for(const l of doc.layers)if(l.groupId===id)l.groupId=g.parentId;for(const child of doc.groups)if(child.parentId===id)child.parentId=g.parentId;doc.groups=doc.groups.filter(g=>g.id!==id);});}
+  ungroup(id:string){return this.groupOperation(doc=>{const g=doc.groups.find(g=>g.id===id);if(!g)throw new Error('Group is missing.');if(g.effects?.length)throw new Error('Remove group live effects or flatten before ungrouping.');if(!g.visible||g.locked||g.opacity!==255)throw new Error('Show, unlock and set group opacity to 100% before ungrouping.');if(descendantLayers(doc,id).some(l=>l.blendMode!=='normal'))throw new Error('Set descendant layer blends to Normal before ungrouping; isolation changes their backdrop.');for(const l of doc.layers)if(l.groupId===id)l.groupId=g.parentId;for(const child of doc.groups)if(child.parentId===id)child.parentId=g.parentId;doc.groups=doc.groups.filter(g=>g.id!==id);});}
   deleteGroup(id:string){return this.groupOperation(doc=>{if(!doc.groups.some(g=>g.id===id))throw new Error('Group is missing.');const leaves=new Set(descendantLayers(doc,id).map(l=>l.id)),groups=new Set(doc.groups.filter(g=>groupAncestors(doc,g.id).some(a=>a.id===id)).map(g=>g.id));if(leaves.size===doc.layers.length)throw new Error('Keep at least one artwork layer.');doc.layers=doc.layers.filter(l=>!leaves.has(l.id));doc.groups=doc.groups.filter(g=>!groups.has(g.id));if(leaves.has(doc.activeLayerId))doc.activeLayerId=doc.layers.at(-1)!.id;});}
   moveIntoGroup(nodeId:string,parentId:string|null){
     const doc=this.document,layer=doc.layers.find(l=>l.id===nodeId),group=doc.groups.find(g=>g.id===nodeId);if(!layer&&!group)throw new Error('Layer or group is missing.');if((layer?layer.groupId:group!.parentId)===parentId)return false;
@@ -225,8 +246,52 @@ export class PixelEditor {
   }
   toggleLayerLock(){return this.changeLayers(()=>{const l=activeLayer(this.document);l.locked=!l.locked;return true;});}
   setLayerOpacity(opacity:number){if(!Number.isInteger(opacity)||opacity<0||opacity>255)throw new Error('Opacity must be 0-255 whole units.');return this.changeLayers(()=>{const l=activeLayer(this.document);if(l.opacity===opacity)return false;l.opacity=opacity;return true;});}
+  setLayerBlendMode(mode:BlendMode){validateBlendMode(mode);return this.changeLayers(()=>{const layer=activeLayer(this.document);if(layer.blendMode===mode)return false;if(layer.adjustment&&mode!=='normal')throw new Error('Adjustment layers require Normal blend.');layer.blendMode=mode;return true;});}
+  private batchLayers(ids:readonly string[]){
+    if(!Array.isArray(ids)||!ids.length||ids.length>MAX_LAYERS||new Set(ids).size!==ids.length||ids.some(id=>!this.document.layers.some(l=>l.id===id)))throw new Error('Select distinct existing artwork layers.');
+    const selected=new Set(ids);return this.document.layers.filter(l=>selected.has(l.id));
+  }
+  /** Metadata applies to precisely the checked leaves, regardless of ancestor locks. */
+  setLayersProperties(ids:readonly string[],patch:Partial<Pick<Layer,'visible'|'locked'|'opacity'|'blendMode'>>){
+    const layers=this.batchLayers(ids);
+    if(!patch||Object.keys(patch).some(k=>!['visible','locked','opacity','blendMode'].includes(k)))throw new Error('Unsupported batch layer property.');
+    for(const key of ['visible','locked'] as const)if(key in patch&&typeof patch[key]!=='boolean')throw new Error('Layer flags must be boolean.');
+    if('opacity' in patch&&(!Number.isInteger(patch.opacity)||patch.opacity!<0||patch.opacity!>255))throw new Error('Opacity must be 0-255 whole units.');
+    if('blendMode' in patch){validateBlendMode(patch.blendMode);if(patch.blendMode!=='normal'&&ids.some(id=>this.document.layers.find(l=>l.id===id)?.adjustment))throw new Error('Adjustment layers require Normal blend.');}
+    if(layers.every(l=>Object.entries(patch).every(([k,v])=>l[k as keyof Layer]===v)))return false;
+    return this.groupOperation(doc=>{for(const layer of doc.layers)if(ids.includes(layer.id))Object.assign(layer,patch);});
+  }
+  duplicateLayers(ids:readonly string[]){
+    const layers=this.batchLayers(ids),doc=this.document;checkCelBudget(doc.width,doc.height,doc.layers.length+layers.length,doc.frames.length);
+    return this.groupOperation(draft=>{let next=1;for(const source of layers){while(draft.layers.some(l=>l.id===`layer-${next}`))next++;const copies=new Map<Uint8ClampedArray,Uint8ClampedArray>(),cels=Object.fromEntries(doc.frames.map(f=>{const pixels=source.cels[f.id];if(!copies.has(pixels))copies.set(pixels,pixels.slice());return [f.id,copies.get(pixels)!];}));const copy=makeLayer(doc,`layer-${next}`,`${source.name.slice(0,70)} copy`,source.visible,cels,source);if(copy.mask)copy.mask={...copy.mask,values:copy.mask.values.slice()};draft.layers.splice(draft.layers.findIndex(l=>l.id===source.id)+1,0,copy);}});
+  }
+  deleteLayers(ids:readonly string[]){
+    const layers=this.batchLayers(ids);if(layers.length===this.document.layers.length)throw new Error('Keep at least one artwork layer.');
+    return this.groupOperation(doc=>{const oldIndex=doc.layers.findIndex(l=>l.id===doc.activeLayerId);doc.layers=doc.layers.filter(l=>!ids.includes(l.id));const empty=doc.groups.filter(g=>!descendantLayers(doc,g.id).length).map(g=>g.id);doc.groups=doc.groups.filter(g=>!empty.includes(g.id));if(ids.includes(doc.activeLayerId))doc.activeLayerId=doc.layers[Math.min(oldIndex,doc.layers.length-1)].id;});
+  }
+  groupLayers(ids:readonly string[]){
+    const layers=this.batchLayers(ids),doc=this.document,parentId=layers[0].groupId;
+    if(doc.groups.length>=MAX_GROUPS)throw new Error('Projects support at most 16 groups.');
+    const first=doc.layers.indexOf(layers[0]),last=doc.layers.indexOf(layers.at(-1)!);
+    if(layers.some(l=>l.groupId!==parentId)||last-first+1!==layers.length)throw new Error('Select a contiguous run of sibling layers to group.');
+    return this.groupOperation(draft=>{let n=1;while(draft.groups.some(g=>g.id===`group-${n}`))n++;const id=`group-${n}`;draft.groups.push({id,name:`Group ${n}`,parentId,visible:true,locked:false,opacity:255});for(const layer of draft.layers)if(ids.includes(layer.id))layer.groupId=id;});
+  }
+  moveLayers(ids:readonly string[],direction:1|-1){
+    const layers=this.batchLayers(ids),doc=this.document,parent=layers[0].groupId;
+    if(direction!==1&&direction!==-1)throw new Error('Choose a layer move direction.');
+    if(layers.some(l=>l.groupId!==parent))throw new Error('Select sibling layers to move together.');
+    const siblings=layerForest(doc,parent),selected=new Set(ids),ordered=siblings.slice();let changed=false;
+    const start=direction===1?ordered.length-2:1,end=direction===1?-1:ordered.length,step=direction===1?-1:1;
+    for(let i=start;i!==end;i+=step){const j=i+direction;if(selected.has(ordered[i].id)&&!selected.has(ordered[j].id)){[ordered[i],ordered[j]]=[ordered[j],ordered[i]];changed=true;}}
+    if(!changed)return false;
+    const leaves=ordered.flatMap(n=>n.group?descendantLayers(doc,n.id):doc.layers.filter(l=>l.id===n.id)),first=Math.min(...leaves.map(l=>doc.layers.indexOf(l)));
+    return this.groupOperation(draft=>{const byId=new Map(draft.layers.map(l=>[l.id,l]));draft.layers.splice(first,leaves.length,...leaves.map(l=>byId.get(l.id)!));});
+  }
   mergeDown(){const doc=this.document,at=doc.layers.indexOf(activeLayer(doc)),top=doc.layers[at],bottom=doc.layers[at-1];
     if(!bottom)throw new Error('Select a layer above another layer.');if(top.groupId!==bottom.groupId||!layerEditable(doc,top)||!layerEditable(doc,bottom))throw new Error('Show and unlock both layers before merging.');
+    if(top.text||top.adjustment||bottom.text||bottom.adjustment)throw new Error('Rasterize text or flatten adjustment layers before merging.');
+    if(top.mask||bottom.mask||top.effects?.length||bottom.effects?.length)throw new Error('Bake layer masks and live effects before merging.');
+    if(top.blendMode!=='normal'||bottom.blendMode!=='normal')throw new Error('Set both layers to Normal before merging. Blends depend on the full backdrop; use flattened export to bake the appearance.');
     const cels=Object.fromEntries(doc.frames.map(f=>[f.id,composite({...doc,layers:[bottom,top],groups:[]},f.id)]));
     return this.changeLayers(()=>{doc.layers.splice(at-1,2,makeLayer(doc,bottom.id,bottom.name,true,cels,{groupId:bottom.groupId}));doc.activeLayerId=bottom.id;return true;});
   }
@@ -292,7 +357,8 @@ export class PixelEditor {
   }
   undo() {
     const command = this.undoStack.pop(); if (!command) return false;
-    if(command.kind==='references'){this.document.references=command.before.references.map(r=>({...r}));this.document.activeReferenceId=command.before.activeReferenceId;}
+    if(command.kind==='authored')restoreAuthored(this.document,command.before);
+    else if(command.kind==='references'){this.document.references=command.before.references.map(r=>({...r}));this.document.activeReferenceId=command.before.activeReferenceId;}
     else if(command.kind==='palette')this.document.palette=command.before.slice();
     else if(command.kind==='layers')this.restore(command.before);
     else if(command.kind==='bitmap'){const layer=this.document.layers.find(l=>l.id===command.layerId)!;this.document.activeLayerId=layer.id;this.document.activeFrameId=command.frameId;for(const id of command.frames)layer.cels[id]=command.buffer;layer.pixels.set(command.before);}
@@ -302,7 +368,8 @@ export class PixelEditor {
   }
   redo() {
     const command = this.redoStack.pop(); if (!command) return false;
-    if(command.kind==='references'){this.document.references=command.after.references.map(r=>({...r}));this.document.activeReferenceId=command.after.activeReferenceId;}
+    if(command.kind==='authored')restoreAuthored(this.document,command.after);
+    else if(command.kind==='references'){this.document.references=command.after.references.map(r=>({...r}));this.document.activeReferenceId=command.after.activeReferenceId;}
     else if(command.kind==='palette')this.document.palette=command.after.slice();
     else if(command.kind==='layers')this.restore(command.after);
     else if(command.kind==='bitmap'){const layer=this.document.layers.find(l=>l.id===command.layerId)!;this.document.activeLayerId=layer.id;this.document.activeFrameId=command.frameId;for(const id of command.frames)layer.cels[id]=command.buffer;layer.pixels.set(command.after);}
@@ -323,3 +390,9 @@ export * from './companion.js';
 
 export * from './groups.js';
 export * from './palette-exchange.js';
+export * from './native-gif.js';
+export * from './raster-exchange.js';
+
+export * from './legacy-raster.js';
+export * from './native-icon.js';
+export * from './native-apng.js';

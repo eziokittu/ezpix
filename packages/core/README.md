@@ -1,4 +1,4 @@
-# @ezpix/core 0.133.0
+# @ezpix/core 0.190.0
 
 Original deterministic RGBA editor and image conversion engine. No runtime
 dependencies or inference. Build with the workspace `npm run build`.
@@ -26,10 +26,10 @@ The main entry exports document/history/codec and pure conversion functions.
 and shared controls; `/worker` processes conversion jobs; `/transfer` validates
 the local Chrome handoff. Pure conversion does not access the DOM or network.
 
-Up to 16 layers, up to 32 frames within a 4 MiB cel-pixel budget, 1–256 pixels per axis. Project v10 is bounded plain JSON, at most
+Up to 16 layers, up to 32 frames within a 4 MiB cel-pixel budget, 1–256 pixels per axis. Project v11 is bounded plain JSON, at most
 24 MiB, with optional original RGBA source and a versioned conversion recipe.
 The entire source is included, even outside the crop, unless explicitly omitted.
-v1/v2/v3/v4/v5/v6/v7/v8/v9 remain readable; unknown versions and malformed/bounded data are rejected.
+v1/v2/v3/v4/v5/v6/v7/v8/v9/v10 remain readable; unknown versions and malformed/bounded data are rejected.
 Projects store ordered frames with 20-5000 ms durations and explicit empty, independent or linked RGBA cels
 per layer/frame, selected frame/layer, visibility and names. Legacy v1-v3 files
 migrate into one frame. Frame operations validate the dense cel budget before
@@ -179,7 +179,7 @@ regenerates bounded pixels and records one structural undo. This is baked
 translation, not live keyframes, morphing, rotation or AI generation.
 
 Phase 11f captures flattened reusable animation clips from all frames or one
-named range. Clip v1 embeds a strict flat v10 project with no groups, sources,
+named range. Clip v1 embeds a strict flat v10 or v11 project with no groups, sources,
 references or linked cels. Limits: 6 MiB encoded, 4 MiB decoded pixels, 256px per
 axis and 32 frames. The browser library allows four clips / 12 MiB encoded total;
 all stored records validate as untrusted input. Append creates one independent
@@ -791,3 +791,471 @@ distance falloff and optional wrapping. Nearest visits win duplicate frame IDs;
 current frame is never included. Far ghosts composite before near ghosts.
 Settings remain in this tab and never enter project pixels/schema. Project writer
 stays v10; readers stay v1-v10. Extension permissions remain unchanged.
+
+
+## Direct canvas workflow helpers (13cz-13dd)
+
+`canvasHandles` and `moveCanvasHandle` translate integer handle positions into
+existing Studio options. Polygon, quadratic/cubic curve and gradient points feed
+`prepareStudio`; rotation uses atan2 about the true canvas centre; simultaneous
+shear handles constrain one percentage each (-400..400); offset handles use an
+integer centre anchor; perspective uses four pixel-edge corners. All raster math,
+source checks, linking and Undo still run once through the staged Studio engine.
+Numeric edits remain available for exact values and singular transforms reject.
+Canvas edits commit only on explicit Apply/Enter, not pointer release. Cancelled
+or lost pointer capture restores the pre-drag control state without changing art.
+
+`CanvasGuides` keeps at most 16 distinct whole positions per axis, a grid step
+1-32, snap tolerance0-8, visibility/rulers and optional canvas edges/centre snap.
+`snapCanvasPoint` chooses the nearest guide within tolerance (lower position wins
+equal ties), then falls back to half-up grid snapping, clamped to +/-1024.
+Guide visibility is independent of snapping. Rulers/guides and split preview are
+session view state, never artwork or project schema. UI guide drags snap to grid
+without attracting themselves; crossing an occupied guide position is ignored.
+
+Shared command discovery includes unbound Canvas commands. `upgradeCommandBindings`
+accepts the complete previous registry or current registry, adds new defaults,
+rejects unknown/missing old IDs/conflicts, and preserves existing custom bindings.
+Website split preview has independent zoom1-24, pan/scroll/keyboard navigation,
+Composite or raw active-cel source, optional staged composite and bounded 3x3
+repeat. Overlays never enter native exports. This is one-document split viewing,
+not multi-document editing. Physical stylus/mobile and other release gates remain
+separate. Writer remains v10/readers v1-v10; no new permissions or dependencies.
+
+
+## Phases 13de-13dn: dynamics, construction and baked filters
+
+`DrawingPoint.pressure` is optional finite 0-1 (default 1). The moving window
+averages pressure alongside coordinates; connected samples interpolate it.
+Optional `dynamics` has Boolean size/opacity, minimum percent 0-100 and
+linear/soft(square root)/firm(square) response. Paint/dither/spray only.
+Geometric size rounds half up with minimum 1; stamps keep their original size.
+Opacity scales ink alpha; zero response with opacity enabled skips the dab.
+First successful destination visit still wins. Raw anchors remain capped at4096,
+connected samples65536 and footprints8M. Website pen events retain pressure;
+mouse/touch/keyboard use full pressure. Cancellation does not apply the stage.
+
+Studio `text` bakes an original 3x5 bitmap alphabet with uppercase Latin, digits,
+spaces/newlines and !?.,:-+/(). Text128 characters, scale1-8, spacing0-8;
+first point is origin. No external font/assets or editable text layer.
+`iso` draws diamond/grid/box wireframes using 2:1 projection, origin firstpoint,
+unit radius1-16, extent amount1-32, box height secondaryAmount1-32. Intersections
+blend once, top/vertical colour wins shared vertices. Construction clips.
+
+Rotate/shear accept optional copied whole-pixel pivot within +/-1024; absent
+means exact canvas centre, including half coordinates. Transform `sampling`
+defaults nearest; bilinear uses four premultiplied neighbours, transparent
+outside samples or wrap. Zero weighted alpha keeps nearest hidden RGB.
+Fixed canvas clips; this does not change selection-transform sampling.
+
+New Studio baked filters (all bounded, range/layer selectable, one Undo):
+- motion: centered/trailing immutable premultiplied line averages, vector+/-32,
+  radius1-16, clamp/wrap; fully transparent averages retain destination hiddenRGB.
+- mosaic: average/nearest blocks1-16 anchored to origin, partial edge blocks;
+  average is premultiplied, nearest uses block top-left. No document resize.
+- posterize: RGB/luma/alpha quantization to2-32 levels, half-up; luma weights
+  54/183/19 over256. Fully transparent pixels unchanged.
+- edges: Sobel magnitude, absolute4-neighbour Laplacian, diagonal emboss128;
+  premultiplied RGB inputs, gain0-500%, clamp/wrap, destination alpha retained.
+- noise: mono/RGB/salt variation, uint32 seed, amplitude0-255, density0-100;
+  integer hash, no time/randomness, alpha/transparent hiddenRGB preserved.
+
+Studio plans privately capture options including pivots, reject stale/forged
+plans and validate all targets/locks/links/budgets before changes. The32M work
+limit accounts for block, motion, edge and bilinear sample costs. Existing
+linked peers outside target range change and are reported; independent equal
+cels stay independent. Writer10/readers1-10 remain unchanged. These are baked
+operations, not a live effect stack. Seven new unbound commands migrate without
+resetting existing shortcut preferences. Physical pen, browser/device, external
+reader and release gates require separate evidence.
+
+## Phases 13do-13dx: soft selection workflow and baked transform tween
+
+`Coverage` is a separate full-canvas width/height and Uint8Array of 0-255 weights.
+It is never a binary Selection.mask or a project schema field. `captureCoverage`
+selects the full canvas or embeds original binary membership at its canvas offset,
+checking layer/frame/dimensions/raw baseline. Sparse reads remain detached.
+
+`editCoverage` provides box feather radius0-32 with zero exterior, exact integral
+sum and one half-up division by(2r+1)^2; rectangle/ellipse/diamond operands;
+max union, min intersection, clamped subtraction, absolute-difference XOR,
+replace, inversion, threshold, levels and opacity. `paintCoverage` connects up to
+4096 pixel anchors/65536 samples, with square/round tip1-64, opacity0-255,
+hardness0-100, maximum dab overlap and add/erase/replace;8M footprint cap.
+CoverageSession holds32 separate mask Undo records and4 named copied session slots.
+Slots require exact canvas dimensions; neither masks nor slots enter projects.
+
+`prepareCoverage` captures private mask/action data and stages selected-cel
+fill/erase/alpha, affine/perspective transforms or nine existing Studio filter
+families. `PixelEditor.applyCoverage` rejects forged/stale plans and regenerates
+from private inputs, preserving links and making one bitmap Undo. Previews/pixels
+are defensive copies. Existing visibility/group locks and history budgets apply.
+Weighted replacement interpolates premultiplied source/destination RGBA; when
+both alpha values are zero it interpolates hidden RGB. Weight0 is exact identity,
+weight255 exact source replacement. Erase attenuates alpha and retains hidden RGB.
+Masked filters render from the whole immutable original cel then mix by coverage;
+their neighbourhoods may read pixels outside coverage. Other layers/frames are
+unchanged except existing linked peers. References/source/palette/tags stay intact.
+
+Coverage affine transforms combine X/Y scale1-400%, simultaneous shear+/-400%,
+rotation+/-360, translation/pivot+/-1024 and nearest/bilinear inverse sampling.
+Perspective reuses the shared convex homography, mapping tight nonzero coverage
+bounds into four ordered destination edge corners. Payload and coverage sample
+together in premultiplied space, excluding nonmember colour. Canvas clips output.
+Inverse coordinates within1e-9 of whole pixels snap before interpolation, avoiding
+spurious colour from vanishing numerical weights at exact projective boundaries.
+Copy retains original outside destination; Move clears weighted source alpha first,
+then mixes destination. Overlapping soft moves can reduce alpha; identity affine
+transforms are explicit exact no-ops. Fully selected moved pixels clear to RGBA0.
+
+`exportCoveragePng`/`importCoveragePng` use opaque grayscale at exact canvas size,
+with1MiB encoded input cap. Gray128 means weight128; old binary-mask PNG import
+still rejects it. `extractCoverage` exports raw active-cel pixels with alpha scaled
+by coverage, optionally tight cropped by nonzero weights. Unselected pixels are
+transparent black. Selected hidden RGB survives. New extracted projects deliberately
+contain one independent layer/frame and copied palette, omitting source/references/
+tags/history. `exportCoverageExtractionPng` shares the bounded native PNG encoder.
+
+Studio kind `transform-tween` bakes the first selected frame's source on chosen
+layers into an existing inclusive range of at least two frames. Angle amount
++/-360, uniform end-scale secondaryAmount1-400%, first point final translation,
+optional pivot and sampling, with linear/ease-in/ease-out/smooth easing. Integer
+parameters round half up per frame. Every selected cel becomes independent;
+outside linked peers stay unchanged. Render destinations start transparent.
+Durations/order/tags/references/source/palette remain unchanged. All targets,
+work<=32M estimated visits and structural Undo budget validate before mutation.
+This is baked animation, not live keyframes. Writer10/readers1-10 are unchanged.
+
+Coverage PNG input uses the shared non-interlaced8-bit RGB/RGBA/indexed decoder,
+requiring equal R/G/B and opaque alpha. PNG grayscale/gray-alpha colour types
+are not yet supported; convert those files to RGB first. Tween preview displays
+the final target frame; applying retains the document's active-frame selection.
+
+
+## Phases 13dy-13dz: blends and checked layers (0.160.0)
+
+Project writer v11 adds required per-layer `blendMode`. Readers v1-v10 migrate
+all layers to Normal; v11 rejects missing/unknown modes before cel allocation.
+Eight modes: normal, multiply, screen, overlay, darken, lighten, difference,
+exclusion. Channels use encoded byte RGB, no linear-light conversion. Source
+alpha includes layer opacity; overlap uses the component blend, non-overlap
+retains source/backdrop colours, then source-over alpha. Premultiplied floating
+channels round only at the final document pixel. Existing Normal fast paths
+remain unchanged. Groups remain isolated Normal composites, with opacity applied
+once after their children. A first child blends with transparent black, never
+with the group's outer backdrop. No group blend modes or live effect stack.
+
+`setLayerBlendMode` changes global layer metadata in one Undo. Copies, geometry,
+Studio previews, playback, sheets, PNG and clips preserve/use the shared blend.
+Raw cels, hidden RGB and linked edit identity stay intact. Merge requires both
+layers Normal; ungroup requires all descendant blends Normal to avoid changing
+their backdrop implicitly. Native layered Aseprite/Piskel/PSD/ORA subsets reject
+non-Normal blends explicitly. Explicit PSD/ORA frames-as-layers export bakes
+visible composites and retains its existing loss warnings. EzPix retains modes.
+Clip v1 readers accept legacy v10 and new v11 embedded projects, with v11 clips
+restricted to a Normal flattened layer.
+
+`setLayersProperties`, `duplicateLayers`, `deleteLayers`, `groupLayers` and
+`moveLayers` validate distinct existing leaf IDs and create one history command.
+Metadata supports visible/locked/opacity/blend; it can change hidden/locked
+leaves without painting them, consistent with single-layer controls. No-op
+property/reorder operations create no record. Duplication preflights the dense
+cel budget, preserves links within each copy and detaches copied pixel buffers.
+Delete retains at least one layer and prunes empty groups; Undo restores them.
+Grouping requires a contiguous run of sibling leaves within existing group/depth
+limits. Moves require siblings, move each selected run one sibling position,
+and preserve selected order; neighbouring groups move as complete subtrees.
+
+Website checkboxes are session-only UI state, separate from the active painting
+layer and project schema. Batch buttons use the existing pending-preview guard,
+dirty/recovery updates and history. This does not add direct multi-cel grid drag,
+persistent layer masks, adjustment layers or broader extension permissions.
+
+
+## Phases 13ea-13ej / 173-182: persistent layer workflows (0.170.0)
+
+Current writer **v12**, readers **v1-v12**. Optional layer `mask` contains an
+`enabled` Boolean and exactly width*height bytes; JSON encodes these as `gray`
+base64. Optional `effects` is an ordered list of at most eight validated records
+(kind, enabled, integer amount). All encoded mask sizes/flags and effect metadata
+are checked before cel decoding. Old projects have neither field. Disabled data
+is retained, validated and protected from silent native export loss. Masks are
+global across frames and separate from binary membership/soft selection sessions.
+One full-size mask per leaf adds at most 1 MiB across sixteen 256x256 layers.
+Cel limits remain 4 MiB dense equivalent; project limit remains 24 MiB.
+
+`prepareLayerWorkflow` and `PixelEditor.applyLayerWorkflow` copy caller options,
+retain private regeneration inputs and reject forged/stale plans. They require
+visible/unlocked targets and ancestors, preflight conservative retained-history
+bytes (including mask buffers and effect metadata), and create one atomic Undo.
+No-op plans preserve redo. Raw artwork, independent/link identities, source,
+recipe, references, tags and palette survive metadata edits. Single/batch layer
+duplication detaches masks/effects and preserves links inside detached cel copies.
+
+173 / 13ea adds persistent masks, enable/disable/remove and project/recovery
+persistence. 174 / 13eb adds mask construction (white/black/raw alpha/shapes),
+feather, levels, inversion, square/round soft brush with hardness/opacity and
+add/erase/replace, 32-entry draft Undo/Redo and numeric paths. Pointer cancel or
+Escape restores the draft stroke. Artwork changes only at Prepare/Apply.
+175 / 13ec adds fixed-canvas mask shift, X/Y flip and clockwise quarter-turns:
+flip source coordinates, rotate around the canvas centre, then translate;
+inverse pixel-centre nearest sampling crops to black outside. Whole-document
+resize/crop/scale/rotate/flip remaps masks alongside raw cels, padding masks black.
+Spatial effects stay live in the resulting coordinates, and geometry previews
+render the actual resulting document rather than transforming an old composite.
+176 / 13ed adds exact-canvas opaque RGB grayscale PNG interchange (1 MiB input),
+mask removal versus baking, and atomic baking across all distinct linked cels.
+PNG grayscale/gray-alpha colour types remain outside the existing decoder subset;
+use RGB/RGBA PNG with equal RGB channels. Raw mask draft download preserves the
+current draft, regardless of whether it has been applied. Bake effects before
+baking a mask; disabled masks remove without changing raw appearance.
+
+177 / 13ee adds live invert, grayscale (54R+183G+19B)/256, brightness -255..255,
+contrast -100..100, alpha 0..200% and posterize 2..32 levels. Colour operations
+include hidden RGB. Contrast is centred at 127.5 with slope (100+c)/(100-c);
++100 saturates values on either side, with no integer channel at the midpoint.
+Posterize rounds to the nearest of N evenly spaced encoded-byte levels.
+178 / 13ef adds live top-left nearest mosaic blocks 1..16px and clipped-edge
+premultiplied box blur radius 1..4px; zero-alpha blur output has zero RGB.
+Each enabled effect rounds half up to bytes before the next effect. Disabled
+effects pass through unchanged. Then mask multiplies alpha with half-up byte
+rounding (RGB unchanged), followed by layer opacity/blending and isolated groups.
+179 / 13eg adds ordered enable/reorder/delete, staged stack replacement and
+all-frame stack baking. Baking renders each distinct linked cel once, preserves
+independent identity, clears the stack and keeps the mask. Merge refuses remaining
+mask/effect metadata. This is a per-artwork-layer stack, not adjustment layers,
+group filters, animatable parameters or text layers. Masked/effected visible
+composites feed animation, previews, sheets, flattened raster exports and clips.
+Layered native subsets reject metadata loss; explicit flattened PSD/ORA frame
+export and clip capture bake it. Clip v1 accepts flattened v10/v11/v12 projects.
+
+180 / 13eh adds staged reference-pixel clockwise rotations, flips, nearest scaling
+and crop, with the existing four/1024px/one-megapixel collection limits and history
+budget. These transform retained display-only reference pixels; canvas positioning,
+opacity and tracing overlays are future work. References never enter artwork exports.
+181 / 13ei adds multi-layer/frame raw rectangle copy/move to consecutive destination
+layers/frames at a chosen canvas origin. Full rectangles must fit. Snapshot reads
+make overlapping moves deterministic: clear all sources first, then write original
+source rectangles, including transparent RGBA. Edited cels detach from outside
+linked peers. Source check order determines destination layer mapping. No system
+clipboard, cross-document paste or direct timeline grid dragging is implied.
+182 / 13ej adds explicit linked holds through a frame range, range unlink and clear.
+Hold reuses the first range frame's cel in each selected layer and overwrites later
+slots; empty cels remain explicit. Unlink makes each targeted cel independent.
+Frame count/durations/tags stay unchanged. These are explicit links, not implicit
+missing-cel holds, live keyframes or embedded clip instances.
+
+Reproduction: `npm test`, `node scripts/phase13eaej-reference.mjs`,
+`node scripts/phase13eaej-native.mjs`, `node scripts/phase13eaej-ui.mjs`;
+see website handoff 182 for package/build/extension checks and remaining gates.
+
+
+## Phases 13ek-13et / 183-192: authored assets (0.180.0)
+
+Current writer **v13**, readers **v1-v13**. New metadata is optional; effect records serialize in canonical kind/enabled/amount order. v1-v12
+migrations do not reinterpret unknown reference placement, special layers,
+group effects, palette organisation or slices. v13 validates new metadata before
+cel/reference raster allocation. Shared `prepareAuthored`/`applyAuthored` retains
+copied options in a private WeakMap, fingerprints the complete source (without
+retained conversion source pixels), regenerates on Apply, rejects stale/forged
+plans and preflights conservative retained history. Snapshot restoration removes
+absent optional fields, avoiding metadata leaking through Undo. Existing source,
+recipe, tags, frames, palette, references and manual raw cels stay intact unless
+an explicit reviewed operation changes them.
+
+183 / 13ek: references optionally store `placement` (x/y +/-1024, displayed
+width/height 1-2048, opacity byte, visible Boolean, behind/above). Missing placement
+means no canvas overlay, preserving legacy sidebar-only display. Placement is
+fixed in canvas coordinates across frames and canvas geometry; retained reference
+pixel rotation/crop/scale remains separate. `referenceOverlay` clips nearest
+sampling to canvas and source-over composites reference order. `referenceDisplay`
+is a review helper only; `composite`, animation, PNG/native/APNG/assets/clip exports
+never call it. Website overlays use separate pointer-transparent canvases. Reference
+pixel limits stay four images, 1024 per source axis, one megapixel combined.
+
+184 / 13el: optional leaf `text` defines original 3x5 authored glyphs, 128 supported
+characters, integer origin +/-1024, scale 1-8, spacing 0-8, and RGBA bytes. One global
+text definition appears in every frame. Existing baked text shares the glyph data.
+Text renders before leaf effects/mask/opacity/blend, keeps raw cel slots empty and
+blocks raw painting, linking and pixel transformations. Rasterize explicitly bakes
+the definition into independent frame cels and clears `text`, retaining masks and
+live effects. Whole-canvas geometry requires rasterization first. Additional fonts,
+rich runs, per-frame text and text transform handles remain future work.
+
+185 / 13em: optional leaf `adjustment:true` filters preceding siblings in the same
+isolated parent, then interpolates original and filtered premultiplied planes by
+layer opacity times enabled mask coverage. Adjustment layers require Normal blend
+and empty raw slots. Existing eight live effects are reused. This is ordered
+backdrop filtering, not a paintable raster or a pass-through group. Full-stack
+Flatten is the explicit bake path because independent adjustment baking can rebind
+a backdrop. Flatten bakes all visible frames to one Normal raster leaf, removes
+hidden art, original layers/groups, link identity and live metadata, and retains
+references/palette/tags/source/slices. One Undo restores the complete prior state.
+
+186 / 13en: isolated groups optionally store up to eight ordered effects. Render
+children as premultiplied floats, convert to byte RGBA once at the filter boundary,
+apply enabled effects in order, then apply group opacity and source-over. Ordinary
+unfiltered groups keep the previous float path/rounding. Ungroup refuses remaining
+group effect metadata (even disabled); explicitly clear effects or flatten first.
+Group effects and adjustment layers use a shared bounded full-raster compositor.
+Per-leaf and group limits remain eight effects; blur radius remains 1-4. This is
+not a measured latency/peak-memory guarantee. Native layered subsets reject live
+special layers/groups; flattened PSD/ORA and clips bake visible composites.
+Native review explicitly reports loss of new palette/slice metadata.
+
+187 / 13eo: `prepareCelGrid` maps a contiguous rectangle in bottom-indexed layer
+and timeline-frame slots to a visual top-left destination. Range must fit fully.
+It reuses immutable-source raw cel copy/move/clear/unlink/hold plans and one atomic
+Undo; targets detach outside linked peers. Website range mode supports anchor,
+Shift-click/Shift-arrow or Extend-and-tap, local HTML drag/drop, and explicit
+Choose destination for touch/keyboard. Drag/drop chooses a destination only;
+Prepare and reviewed Apply remain required. Active paint target does not change.
+The review composite is the editing frame; select another frame before range mode
+to review it. Range/check state is session-only, never in project files.
+
+188 / 13ep: optional `paletteOrganisation` holds at most sixteen uniquely named
+`palette-group-N` groups with disjoint slot-index membership, plus unique locked
+slot indices. Lock prevents replacement/removal, not painting with that colour.
+Moves/removals remap group/lock indices to preserve identity, including duplicate
+RGB swatches. Changes are atomic and never recolour artwork. Ordinary `setPalette`
+may append an exact prefix while organisation exists; bulk replacement/reorder
+requires the organisation-aware workflow or explicit clear. RGB palette files omit
+groups/locks; EzPix and asset JSON retain them. Indexed document mode is not added.
+
+189 / 13eq: optional `slices`, at most 32 unique names/IDs, in-canvas integer
+rectangles and relative pivots +/-1024. Definitions are global across frames and
+do not paint. UI reviews bounds/pivot crosses; asset bundles map them to scaled
+atlas/image coordinates. Native subsets and clips omit them with review. Whole-
+canvas geometry explicitly refuses slices until definitions are cleared, avoiding
+silent clipping/deletion. Automatic slice remapping remains a later enhancement.
+
+190 / 13er: `exportApng` writes full-canvas non-interlaced RGBA8 SOURCE frames,
+no disposal and a contiguous fcTL/fdAT sequence. First frame is also static PNG
+fallback. Frame delays are exact duration/1000 seconds. Timeline order is independent
+of the editing frame. Named reverse/ping-pong ranges expand playback order; Once
+forces one play; otherwise plays 0 is infinite, 1-1000 finite. Integer nearest scale
+1-8; one megapixel per frame, 16 MiB aggregate decoded frame bytes and 8 MiB encoded
+output. Async source fingerprints reject mixed-generation output. No palette
+quantization or browser canvas alpha conversion. Format baseline:
+[W3C PNG 3 animation information](https://www.w3.org/TR/png-3/#11Animation).
+
+191 / 13es: `exportAssets`/`exportAssetBundle` emits an engine-neutral ZIP: APNG or
+atlas or per-frame/per-slice PNGs, plus `ezpix-assets` JSON v1. Origin is top-left.
+Atlas metadata includes scaled frame and slice rectangles and local pivots; source
+slice definitions, frame timing, tags/playback IDs and palette organisation remain
+in JSON. Atlas and individual images include every timeline frame; named-range
+playback order is separate. No native Unity/Godot importer is claimed. PNG is bounded
+to one megapixel, region/frame image count to 38, ZIP to 40 entries/8 MiB content.
+Paths are generated from numeric indices, never project/slice names or source URLs.
+These exports bake visible composites and explicitly omit editable source structure,
+references, conversion inputs, hidden art and history.
+
+192 / 13et: up to four uniquely named export presets, strict settings schema and
+16 KiB portable JSON. Website device storage contains settings only and requires
+Save collection; imports are drafts until saved. APNG previews use the actual locally
+prepared bytes. `exportBatch` applies selected presets to one source snapshot,
+validates every preset/range, bounds total ZIP work/output, uses numbered preset
+folders and includes a batch manifest. Invalid/stale/over-budget preparations yield
+no download; artwork and history remain untouched. No background export/upload,
+account, shared device sync or additional companion permission is introduced.
+
+Website handoff 192 records exact current verification and remaining gates.
+
+Empty or fully disabled adjustment stacks pass through without introducing a
+rounding boundary. Disabled group stacks likewise preserve floating isolation.
+
+
+## Phases 193-197 / 13eu-13ey: local image exchange
+
+Core/companion 0.185.0 adds animated GIF export/import, BMP/QOI exchange and
+static SVG pixel-rectangle export. Website Asset exports supports these formats
+and existing presets/batches. Native exchange stages GIF/BMP/QOI imports; the
+shared converter/companion supports BMP/QOI sources and reviewed two-step image
+downloads. It retains converted artwork, editable-project fallback and the real
+website handoff. No dependency, permission or project schema was added.
+
+Pure APIs: `exportGif`, `decodeGif`, `encodeBmp`, `decodeBmp`, `encodeQoi`,
+`decodeQoi`, `encodePixelSvg`, `rasterImport`; new `AssetExportOptions.format`
+values `gif`, `bmp`, `qoi`, `svg` work with existing preset and batch APIs.
+GIF uses full-canvas frames, disposal 2, transparent index 0, alpha cutoff 128,
+nearest 10 ms timing and an exact palette up to 255 visible RGBs, otherwise a
+fixed 6x7x6 grid. Plays 0 loops forever; plays 1 omits the Netscape extension;
+other counts encode repeats=plays-1. Literal LZW clears every 200 indices, trading
+compression efficiency for bounded predictable output. Decoder supports dynamic
+LZW up to 4096 entries, deferred clear, local tables, offsets, interlace and
+restore-background/previous disposal. Input sub-blocks are counted before exact
+allocation. Unsupported graphic controls/plain text fail. Loops/comments/app data
+are omitted with review. Imported timing clamps to 20-5000 ms.
+
+Inputs cap at 16 MiB, 256 pixels/axis, 32 frames and 4 MiB cel pixels. Exports cap
+at one megapixel/image, GIF at 16 MiB decoded/8 MiB encoded, SVG at 65536 scaled
+pixels. BMP writes top-down sRGB V4 BGRA with explicit channel masks; reads
+uncompressed RGB24/32 (BI_RGB32 ignores undefined alpha) and standard V4/V5 RGBA
+masks; embedded/calibrated profiles and other compression fail. QOI is straight
+RGBA, all standard chunk types decode, header colorspace 0 only; its encoder
+uses RGB/RGBA and runs. SVG includes numeric rectangles/colour/opacity only, no
+imported strings, script, external resources or tracing. Static exports choose
+the active frame unless a named range selects its first playback frame. They
+omit animation and project metadata. References never enter exported artwork.
+
+Reproduce with `node scripts/phase13euey-independent.mjs` and, after the website
+production build, `node scripts/phase13euey-ui.mjs`. Set `EZPIX_QA_RASTER=1` and
+`EZPIX_QA_PHASE8D=1` for `node scripts/phase23-e2e.mjs` to include real companion
+image downloads/BMP-QOI source import alongside toolbar capture/transfer tests.
+Physical devices, human external editors, minimum-hardware/performance, licence,
+hosted/offline/update and store publication remain separate open gates.
+
+
+## Phases 198-202 / 13ez-13fd: legacy raster, icon/cursor and APNG import
+
+Shared core/companion 0.190.0, project writer/readers v13/v1-v13. New pure APIs:
+`encodeTga`/`decodeTga`, `encodePcx`/`decodePcx`, `encodeIcon`/`decodeIcon`,
+`inspectIcon`, `decodeApng`. Asset export formats now include `tga`, `pcx`,
+`ico`, `cur`. Optional preset fields `hotspotX`/`hotspotY` default to zero;
+older seven-field presets remain valid. Hotspots use source-canvas coordinates
+and scale with nearest image scaling. Export rejects out-of-canvas hotspots.
+
+TGA: top-left raw BGRA32 with eight attribute bits and zero-offset TGA2 footer;
+reads raw/RLE RGB24, RGBA32, grayscale8 and all four origins. Colour maps,
+interleave, extension/developer areas and alternate alpha semantics fail.
+32-bit descriptor alpha=0 is treated as opaque, alpha=8 as straight alpha.
+PCX: ZSoft v5 RLE RGB24 export, even scanline padding, alpha flattened onto white.
+Decoder supports v5 8-bit indexed plus trailing 256-colour palette, or RGB24
+three-plane data. It checks scanline run bounds; indexed input becomes RGBA,
+not an indexed document mode. Both static imports cap at 256 pixels/axis,
+16 MiB input. Exports cap at one megapixel within existing bundle budgets.
+
+ICO/CUR: one PNG-backed image export; 1-16 PNG-backed resource alternatives on
+import, 1-256 pixels/axis, at most 4 MiB declared RGBA across the directory,
+16 MiB input. Directory dimensions, ranges, nonoverlap, reserved fields and
+hotspots validate before selected-resource PNG decoding. Legacy DIB resources
+fail explicitly. Alternatives are selected independently, never made into an
+animation. CUR export stores scaled hotspots; selected CUR import retains its
+hotspot as a full-canvas `Cursor hotspot` slice pivot. Export coordinates must
+be set explicitly. This does not install or change an operating-system cursor.
+
+APNG: PNG3 non-interlaced 8-bit RGB/RGBA/indexed subset inherited from the bounded
+PNG decoder. Validates all original CRCs, chunk order, acTL/fcTL/fdAT sequences,
+frame bounds/count and 4 MiB cel budget before frame inflation. At most 32 frames,
+256 pixels/axis, 4096 chunks and 16 MiB input. Composes SOURCE/OVER and NONE/
+BACKGROUND/PREVIOUS; OVER uses exact integer numerator/denominator and nearest
+byte rounding at each frame boundary. The default static fallback is validated
+and omitted when not an animation frame. Duration fractions round to whole ms
+and clamp to 20-5000 with review. Loop and source metadata are omitted. Custom
+profiles, interlacing, 16-bit samples and unsupported chunks fail explicitly.
+
+Website imports use the existing staged native-file review/replacement and
+unsaved-art confirmation; replacing is a new document, not artwork Undo. New
+exports use Prepare/Download, device/portable presets and batch ZIP contracts.
+The shared converter/Chrome companion adds TGA/PCX sources and reviewed TGA/
+PCX/ICO/CUR downloads. Hotspot edits invalidate even in-flight asynchronous
+preparation. Full animation/resource-selection imports remain editor workflows.
+No new runtime dependencies, permissions, AI, telemetry or image uploads.
+
+Reproduce: `node scripts/phase13ezfd-independent.mjs`, then after website build
+`node scripts/phase13ezfd-ui.mjs`. Real companion QA adds `EZPIX_QA_LEGACY=1`
+to `EZPIX_QA_PHASE8D=1` for `node scripts/phase23-e2e.mjs`. Run browser suites
+sequentially on port 3791. `phase13ezfd-report.mjs` aggregates current package,
+final build and fresh browser/integration results. Human external-app/OS cursor,
+physical devices, browser diversity, endurance/performance and release gates
+remain separate. See current handoff for exact recorded verification.

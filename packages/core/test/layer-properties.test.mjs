@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {createDocument,PixelEditor,encodeProject,decodeProject,composite,encodePsd,decodePsd,encodeOra,decodeOra,encodeAseprite,piskelExportWarnings,companionImportPlan} from '../dist/index.js';
 import {readNativeZip,writeNativeZip} from '../dist/native-zip.js';
 test('v5 metadata persists; all v1-v4 defaults remain opaque and unlocked; hostile properties fail',()=>{
- const e=new PixelEditor(createDocument(2,2));e.toggleLayerLock();e.setLayerOpacity(73);const text=encodeProject(e.document);assert.equal(JSON.parse(text).version,10);const back=decodeProject(text);assert.equal(back.layers[0].locked,true);assert.equal(back.layers[0].opacity,73);
+ const e=new PixelEditor(createDocument(2,2));e.toggleLayerLock();e.setLayerOpacity(73);const text=encodeProject(e.document);assert.equal(JSON.parse(text).version,13);const back=decodeProject(text);assert.equal(back.layers[0].locked,true);assert.equal(back.layers[0].opacity,73);
  const v4=JSON.parse(text);v4.version=4;v4.layers[0].cels=[{frameId:'frame-1',rgba:Buffer.alloc(16).toString('base64')}];delete v4.layers[0].locked;delete v4.layers[0].opacity;const legacy=decodeProject(JSON.stringify(v4));assert.equal(legacy.layers[0].opacity,255);assert.equal(legacy.layers[0].locked,false);
  for(const props of [{locked:1},{opacity:-1},{opacity:256},{opacity:1.5},{opacity:null}]){const bad=JSON.parse(text);Object.assign(bad.layers[0],props);assert.throws(()=>decodeProject(JSON.stringify(bad)));}
 });

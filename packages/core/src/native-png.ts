@@ -26,3 +26,5 @@ export async function decodeNativePng(bytes:Uint8Array,width:number,height:numbe
  for(let y=0;y<height;y++){const filter=raw[y*(stride+1)];if(filter>4)fail('Invalid PNG row filter.');for(let x=0;x<stride;x++){const a=x>=channels?scan[y*stride+x-channels]:0,b=y?scan[(y-1)*stride+x]:0,c=y&&x>=channels?scan[(y-1)*stride+x-channels]:0,p=a+b-c,pa=Math.abs(p-a),pb=Math.abs(p-b),pc=Math.abs(p-c),predict=filter===0?0:filter===1?a:filter===2?b:filter===3?Math.floor((a+b)/2):pa<=pb&&pa<=pc?a:pb<=pc?b:c;scan[y*stride+x]=(raw[y*(stride+1)+1+x]+predict)&255;}}
  const pixels=new Uint8ClampedArray(width*height*4);for(let i=0;i<width*height;i++){if(color===3){const p=scan[i];if(p>=palette!.length/3)fail('PNG palette index out of bounds.');pixels.set([palette![p*3],palette![p*3+1],palette![p*3+2],alpha?.[p]??255],i*4);}else pixels.set([scan[i*channels],scan[i*channels+1],scan[i*channels+2],channels===4?scan[i*channels+3]:255],i*4);}return pixels;
 }
+
+export {chunk as pngChunk};

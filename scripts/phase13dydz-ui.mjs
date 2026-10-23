@@ -1,0 +1,40 @@
+import {chromium} from 'playwright';import {spawn} from 'node:child_process';import {mkdir,writeFile,readFile} from 'node:fs/promises';import {resolve} from 'node:path';import assert from 'node:assert/strict';
+import {PixelEditor,createDocument,encodeProject,decodeProject,BLEND_MODES,composite} from '../packages/core/dist/index.js';
+const out=resolve('artifacts/phase13dydz-ui'),web=resolve('../glitchbong'),base='http://localhost:3791';await mkdir(out,{recursive:true});const e=new PixelEditor(createDocument(16,16,'Layer study')),d=e.document;
+for(let l=0;l<3;l++){if(l)e.addLayer();e.renameLayer(['Ground','Colour','Glow'][l]);for(let i=0;i<256;i++)e.paint(i%16,Math.floor(i/16),[(i*7+l*63)%256,(i*3+l*91)%256,(200+i+l*12)%256,[0,1,128,255][(i+l)%4]]);e.commit();}
+e.addFrame();for(const layer of d.layers){e.selectLayer(layer.id);e.linkCel('frame-1');}e.selectFrame('frame-1');e.setTag({name:'Study',from:0,to:1,mode:'loop'});e.addReference({name:'Reference',width:1,height:1,pixels:new Uint8ClampedArray([7,8,9,128])});const before=encodeProject(d);await writeFile(resolve(out,'study.ezpix'),before);
+const server=spawn(process.execPath,[resolve(web,'node_modules/next/dist/bin/next'),'start','-p','3791'],{cwd:web,stdio:'ignore',windowsHide:true});let browser;
+try{for(let i=0;i<100;i++){try{if((await fetch(base+'/tools/ezpix')).ok)break;}catch{}await new Promise(r=>setTimeout(r,500));}browser=await chromium.launch({channel:'chrome',headless:true});const page=await browser.newPage({viewport:{width:1440,height:800}}),errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('dialog',v=>v.accept());const b=name=>page.getByRole('button',{name,exact:true});
+const inspector=async()=>{if(await page.locator('.ez-mobile-docks').isVisible()&&!await page.getByLabel('Layer blend',{exact:true}).isVisible())await page.getByRole('group',{name:'Open inspector',exact:true}).getByRole('button',{name:'layers',exact:true}).click();};
+const save=async()=>{const event=page.waitForEvent('download');await b('Download project').click();await (await event).saveAs(resolve(out,'download.ezpix'));await b('Dismiss save notification').click();return readFile(resolve(out,'download.ezpix'),'utf8');};
+const load=async()=>{await page.locator('input[accept=".ezpix,application/json"]').setInputFiles(resolve(out,'study.ezpix'));await page.locator('.ez-statusbar [data-tip="Project opened"]').waitFor();await inspector();await page.getByLabel('Layer name',{exact:true}).waitFor();if(await page.locator('.ez-batch-layers').evaluate(e=>e.open))await page.locator('.ez-batch-layers summary').click();};
+const batch=async()=>{const details=page.locator('.ez-batch-layers');if(!await details.evaluate(e=>e.open))await details.locator('summary').click();await b('Clear checked layers').click();await page.getByLabel('Check layer Ground',{exact:true}).check();await page.getByLabel('Check layer Colour',{exact:true}).check();assert.equal(await b('Select layer Glow').getAttribute('aria-pressed'),'true');};
+const verify=async expected=>{assert.equal(await save(),encodeProject(expected.document));await b('Undo').click();assert.equal(await save(),before);await b('Redo').click();assert.equal(await save(),encodeProject(expected.document));};
+const norm=pixels=>page.evaluate(pixels=>{const canvas=new OffscreenCanvas(16,16),ctx=canvas.getContext('2d',{willReadFrequently:true});ctx.putImageData(new ImageData(Uint8ClampedArray.from(pixels),16,16),0,0);return [...ctx.getImageData(0,0,16,16).data];},[...pixels]);
+await page.goto(base+'/tools/ezpix');await b('Use default canvas').click();let checks=0;
+for(const width of [1440,768,390,320]){
+ await page.setViewportSize({width,height:640});
+ for(const mode of BLEND_MODES.filter(m=>m!=='normal')){await load();await page.getByLabel('Layer blend',{exact:true}).selectOption(mode);const expected=new PixelEditor(decodeProject(before));expected.setLayerBlendMode(mode);await verify(expected);assert.deepEqual(await page.getByLabel('Native-size preview',{exact:true}).evaluate(c=>[...c.getContext('2d').getImageData(0,0,16,16).data]),await norm(composite(expected.document)));if(mode==='multiply')await page.screenshot({path:resolve(out,`blend-${width}.png`)});checks++;}
+ for(const operation of ['hide','lock','opacity','blend','duplicate','delete','group','up','down']){
+  await load();await batch();const expected=new PixelEditor(decodeProject(before)),ids=['layer-1','layer-2'];
+  if(operation==='hide'){await b('Hide checked layers').click();expected.setLayersProperties(ids,{visible:false});}
+  if(operation==='lock'){await b('Lock checked layers').click();expected.setLayersProperties(ids,{locked:true});}
+  if(operation==='opacity'){await page.getByLabel('Batch opacity',{exact:true}).fill('73');await b('Set checked opacity').click();expected.setLayersProperties(ids,{opacity:73});}
+  if(operation==='blend'){await page.getByLabel('Batch blend',{exact:true}).selectOption('screen');await b('Set checked blend').click();expected.setLayersProperties(ids,{blendMode:'screen'});}
+  if(operation==='duplicate'){await b('Duplicate checked layers').click();expected.duplicateLayers(ids);}
+  if(operation==='delete'){await b('Delete checked layers').click();expected.deleteLayers(ids);}
+  if(operation==='group'){await b('Group checked layers').click();expected.groupLayers(ids);}
+  if(operation==='up'){await b('Move checked layers up').click();expected.moveLayers(ids,1);}
+  if(operation==='down'){await b('Clear checked layers').click();await page.getByLabel('Check layer Colour',{exact:true}).check();await page.getByLabel('Check layer Glow',{exact:true}).check();await b('Move checked layers down').click();expected.moveLayers(['layer-2','layer-3'],-1);}
+  await verify(expected);assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));checks++;
+ }
+ // Invalid grouping must leave every cel, active ID and metadata unchanged.
+ await load();await batch();await page.getByLabel('Check layer Colour',{exact:true}).uncheck();await page.getByLabel('Check layer Glow',{exact:true}).check();await b('Group checked layers').click();await page.locator('.ez-statusbar [data-tip*="contiguous"]').waitFor();assert.equal(await save(),before);checks++;
+ await b('Clear checked layers').click();await b('Check all layers').click();assert.equal(await b('Delete checked layers').isDisabled(),true);await page.screenshot({path:resolve(out,`layers-${width}.png`)});
+}
+// Checkboxes support the keyboard without changing the active painting layer.
+await page.setViewportSize({width:1440,height:800});await load();await batch();await b('Clear checked layers').click();await page.getByLabel('Check layer Ground',{exact:true}).focus();await page.keyboard.press('Space');assert.equal(await b('Select layer Glow').getAttribute('aria-pressed'),'true');assert.equal(await save(),before);checks++;
+// Pending rectangle must be resolved before either individual or batch layer metadata mutates.
+await page.locator('.ez-mobile-close').evaluate(e=>e.click());await b('Select').click();const canvas=page.locator('canvas.ez-canvas');await canvas.focus();await page.keyboard.press('Space');await page.keyboard.press('ArrowRight');await page.keyboard.press('Space');await page.getByLabel('Layer blend',{exact:true}).selectOption('multiply');await page.getByRole('dialog',{name:'Finish your preview'}).waitFor();await b('Keep editing').click();await canvas.focus();await page.keyboard.press('Escape');assert.equal(await save(),before);checks++;
+assert.deepEqual(errors,[]);await writeFile(resolve(out,'result.json'),JSON.stringify({status:'passed',checks,widths:[1440,768,390,320],browser:await browser.version(),evidence:['seven blends exact native canvas preview','nine batch operations raw project Apply Undo Redo','linked cels reference and tag preservation','contiguity error atomicity and keep-one-layer guard','keyboard checkboxes retain paint target','pending preview guard']},null,2));console.log('PASS layer workflows',checks,'cases');
+}finally{await browser?.close();server.kill();}

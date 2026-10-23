@@ -1,29 +1,35 @@
+import {transformCoveragePixels,defaultCoverageTransform} from './coverage.js';
+import {studioEffects,validateStudioEffects} from './studio-effects.js';
 import {composite,encodeProject,rasterCel,makeLayer,validateDuration,type PixelDocument,type RGBA,type Layer} from './document.js';
 import {layerEditable} from './groups.js';
 import {type Point} from './toolkit.js';
-export const STUDIO_KINDS=['polygon','curve','gradient','rotate','shear','perspective','offset','outline','shadow','alpha','cels','timing','sequence'] as const;
+export const STUDIO_KINDS=['polygon','curve','gradient','rotate','shear','perspective','offset','outline','shadow','alpha','cels','timing','sequence','text','iso','motion','mosaic','posterize','edges','noise','transform-tween'] as const;
 export type StudioKind=typeof STUDIO_KINDS[number];
 export interface StudioOptions {
  kind:StudioKind; layers:string[]; from:number;to:number;
  points:Point[];color:RGBA;secondary:RGBA;filled:boolean;over:boolean;
  amount:number;secondaryAmount:number;radius:number;wrap:boolean;
- variant:string;
+ variant:string; text?:string;seed?:number;pivot?:Point;sampling?:'nearest'|'bilinear';
 }
-export function defaultStudioOptions(doc:PixelDocument,kind:StudioKind='polygon'):StudioOptions{return {kind,layers:[doc.activeLayerId],from:doc.frames.findIndex(f=>f.id===doc.activeFrameId),to:doc.frames.findIndex(f=>f.id===doc.activeFrameId),points:kind==='gradient'?[{x:0,y:0},{x:Math.max(1,doc.width-1),y:doc.height-1}]:kind==='perspective'?[{x:0,y:0},{x:doc.width,y:0},{x:doc.width,y:doc.height},{x:0,y:doc.height}]:[{x:0,y:0},{x:doc.width-1,y:0},{x:doc.width-1,y:doc.height-1},{x:0,y:doc.height-1}],color:[57,255,20,255],secondary:[0,0,0,0],filled:true,over:true,amount:kind==='timing'?100:kind==='rotate'?30:1,secondaryAmount:0,radius:1,wrap:false,variant:kind==='gradient'?'linear':kind==='alpha'?'dilate':kind==='cels'?'clear':kind==='timing'?'set':kind==='sequence'?'reverse':'default'};}
+export function defaultStudioOptions(doc:PixelDocument,kind:StudioKind='polygon'):StudioOptions{return {kind,text:'EZPIX',seed:1,sampling:'nearest',layers:[doc.activeLayerId],from:doc.frames.findIndex(f=>f.id===doc.activeFrameId),to:kind==='transform-tween'?doc.frames.length-1:doc.frames.findIndex(f=>f.id===doc.activeFrameId),points:kind==='gradient'?[{x:0,y:0},{x:Math.max(1,doc.width-1),y:doc.height-1}]:kind==='perspective'?[{x:0,y:0},{x:doc.width,y:0},{x:doc.width,y:doc.height},{x:0,y:doc.height}]:[{x:0,y:0},{x:doc.width-1,y:0},{x:doc.width-1,y:doc.height-1},{x:0,y:doc.height-1}],color:[57,255,20,255],secondary:[0,0,0,0],filled:true,over:true,amount:kind==='transform-tween'?90:kind==='posterize'?4:kind==='edges'?100:kind==='noise'?24:kind==='timing'?100:kind==='rotate'?30:1,secondaryAmount:kind==='transform-tween'?100:kind==='noise'?50:kind==='text'||kind==='iso'?1:0,radius:kind==='mosaic'||kind==='motion'?4:1,wrap:false,variant:kind==='transform-tween'?'linear':kind==='text'?'block':kind==='iso'?'diamond':kind==='motion'?'centered':kind==='mosaic'?'average':kind==='posterize'?'rgb':kind==='edges'?'sobel':kind==='noise'?'mono':kind==='gradient'?'linear':kind==='alpha'?'dilate':kind==='cels'?'clear':kind==='timing'?'set':kind==='sequence'?'reverse':'default'};}
 export interface StudioPlan {readonly baseline:string;readonly options:StudioOptions;readonly changed:boolean;readonly affectedCels:number;readonly outsideLinks:number;readonly historyBytes:number;readonly frames:ReadonlyArray<{readonly id:string;readonly duration:number}>;readonly preview:Uint8ClampedArray}
 const plans=new WeakMap<StudioPlan,StudioOptions>();
 const round=(value:number)=>Math.floor(value+0.5+1e-10);
 const integer=(v:number,min:number,max:number,label:string)=>{if(!Number.isInteger(v)||v<min||v>max)throw new Error(`${label} must be a whole number from ${min} to ${max}.`);};
 function validated(doc:PixelDocument,input:StudioOptions):StudioOptions{
  if(!input||!STUDIO_KINDS.includes(input.kind))throw new Error('Choose a studio operation.');
- const o={...input,layers:input.layers?.slice(),points:input.points?.map(p=>({...p})),color:input.color?.slice() as unknown as RGBA,secondary:input.secondary?.slice() as unknown as RGBA};
+ const o={...input,pivot:input.pivot?{...input.pivot}:undefined,layers:input.layers?.slice(),points:input.points?.map(p=>({...p})),color:input.color?.slice() as unknown as RGBA,secondary:input.secondary?.slice() as unknown as RGBA};
  if(!Array.isArray(o.layers)||!o.layers.length||new Set(o.layers).size!==o.layers.length||o.layers.some(id=>!doc.layers.some(l=>l.id===id)))throw new Error('Select existing, distinct artwork layers.');
  integer(o.from,0,doc.frames.length-1,'First frame');integer(o.to,o.from,doc.frames.length-1,'Last frame');
  for(const c of [o.color,o.secondary]){if(!Array.isArray(c)||c.length!==4)throw new Error('Use four RGBA bytes.');c.forEach(v=>integer(v,0,255,'RGBA'));}
  if(!Array.isArray(o.points)||o.points.length>64||o.points.some(p=>!p||!Number.isInteger(p.x)||!Number.isInteger(p.y)||Math.abs(p.x)>1024||Math.abs(p.y)>1024))throw new Error('Use at most 64 whole-coordinate points within -1024 to 1024.');
  if(!['filled','over','wrap'].every(k=>typeof o[k as 'filled']==='boolean'))throw new Error('Drawing flags must be Boolean.');
  integer(o.amount,-5000,5000,'Amount');integer(o.secondaryAmount,-5000,5000,'Second amount');integer(o.radius,1,16,'Radius');
- const variants:Partial<Record<StudioKind,string[]>>={gradient:['linear','radial','diamond'],alpha:['dilate','erode','threshold'],cels:['clear','copy','unlink'],timing:['set','scale'],sequence:['reverse','pingpong','repeat']};
+ if(o.sampling!==undefined&&!['nearest','bilinear'].includes(o.sampling))throw new Error('Choose nearest or bilinear sampling.');
+ if(o.pivot&&(!Number.isInteger(o.pivot.x)||!Number.isInteger(o.pivot.y)||Math.abs(o.pivot.x)>1024||Math.abs(o.pivot.y)>1024))throw new Error('Pivot coordinates must be whole pixels within -1024 to 1024.');
+ validateStudioEffects(o);
+ if(o.kind==='transform-tween'&&(o.to<=o.from||Math.abs(o.amount)>360||o.secondaryAmount<1||o.secondaryAmount>400||!o.points.length))throw new Error('Transform tween needs at least two target frames, end angle +/-360 and end scale 1-400%.');
+ const variants:Partial<Record<StudioKind,string[]>>={'transform-tween':['linear','ease-in','ease-out','smooth'],text:['block'],iso:['diamond','grid','box'],motion:['centered','trailing'],mosaic:['average','nearest'],posterize:['rgb','luma','alpha'],edges:['sobel','laplacian','emboss'],noise:['mono','rgb','salt'],gradient:['linear','radial','diamond'],alpha:['dilate','erode','threshold'],cels:['clear','copy','unlink'],timing:['set','scale'],sequence:['reverse','pingpong','repeat']};
  if(variants[o.kind]&&!variants[o.kind]!.includes(o.variant))throw new Error('Choose a supported operation mode.');
  if(o.kind==='polygon'&&o.points.length<3||o.kind==='curve'&&![3,4].includes(o.points.length)||o.kind==='gradient'&&o.points.length<2||o.kind==='perspective'&&o.points.length!==4)throw new Error('Polygon needs 3-64 vertices; curves 3 or 4 controls; gradient 2 anchors; perspective 4 corners.');
  if(o.kind==='shear'&&(Math.abs(o.amount)>400||Math.abs(o.secondaryAmount)>400||Math.abs(1-o.amount*o.secondaryAmount/10000)<0.01))throw new Error('Shears need -400 to 400 percent and a nonsingular transform.');
@@ -36,7 +42,8 @@ function validated(doc:PixelDocument,input:StudioOptions):StudioOptions{
 }
 function blend(dst:Uint8ClampedArray,i:number,c:RGBA,over:boolean){if(!over){dst.set(c,i);return;}const a=c[3]*255,b=dst[i+3]*(255-c[3]),out=a+b;if(!out)return;for(let k=0;k<3;k++){const n=c[k]*a+dst[i+k]*b;dst[i+k]=Math.floor((2*n+out)/(2*out));}dst[i+3]=Math.floor((2*out+255)/510);}
 
-function homography(points:Point[],width:number,height:number){
+export function homography(points:Point[],width:number,height:number){
+ if(!Number.isInteger(width)||!Number.isInteger(height)||width<1||height<1||width>256||height>256||!Array.isArray(points)||points.length!==4||points.some(p=>!p||!Number.isInteger(p.x)||!Number.isInteger(p.y)||Math.abs(p.x)>1024||Math.abs(p.y)>1024))throw new Error('Perspective needs four bounded corners and 1-256 source dimensions.');
  // Solve destination-to-source projective mapping with bounded partial pivoting.
  const src=[{x:0,y:0},{x:width,y:0},{x:width,y:height},{x:0,y:height}],m:number[][]=[];
  let direction=0;for(let i=0;i<4;i++){const a=points[i],b=points[(i+1)%4],c=points[(i+2)%4],cross=(b.x-a.x)*(c.y-b.y)-(b.y-a.y)*(c.x-b.x);if(!cross||direction&&Math.sign(cross)!==direction)throw new Error('Perspective corners must form a strictly convex ordered quadrilateral.');direction=Math.sign(cross);const {x,y}=a,u=src[i].x,v=src[i].y;m.push([x,y,1,0,0,0,-u*x,-u*y,u],[0,0,0,x,y,1,-v*x,-v*y,v]);}
@@ -46,6 +53,7 @@ function homography(points:Point[],width:number,height:number){
 /** Authored integer raster drawing and nearest-neighbour transforms; fixed canvas clips output. */
 function studioRaster(source:Uint8ClampedArray,w:number,h:number,o:StudioOptions):Uint8ClampedArray{
  const before=source.length?source:new Uint8ClampedArray(w*h*4),out=before.slice(),at=(x:number,y:number)=>(y*w+x)*4,put=(x:number,y:number,c:RGBA=o.color)=>{if(x>=0&&x<w&&y>=0&&y<h)blend(out,at(x,y),c,o.over);};
+ const effect=studioEffects(before,w,h,o);if(effect)return effect;
  const sample=(x:number,y:number)=>{if(o.wrap){x=(x%w+w)%w;y=(y%h+h)%h;}return x>=0&&x<w&&y>=0&&y<h?at(x,y):-1;};
  if(o.kind==='polygon'||o.kind==='curve'){
   const seen=new Set<number>(),mark=(p:Point)=>{if(p.x>=0&&p.x<w&&p.y>=0&&p.y<h)seen.add(p.y*w+p.x);},line=(a:Point,b:Point)=>{let {x,y}=a;const dx=Math.abs(b.x-x),dy=-Math.abs(b.y-y),sx=x<b.x?1:-1,sy=y<b.y?1:-1;let err=dx+dy;for(;;){mark({x,y});if(x===b.x&&y===b.y)break;const e=2*err;if(e>=dy){err+=dy;x+=sx;}if(e<=dx){err+=dx;y+=sy;}}};
@@ -61,10 +69,10 @@ function studioRaster(source:Uint8ClampedArray,w:number,h:number,o:StudioOptions
   }return out;
  }
  if(['rotate','shear','perspective','offset'].includes(o.kind)){
-  out.fill(0);const cx=(w-1)/2,cy=(h-1)/2,angle=o.amount*Math.PI/180,cos=o.amount%90===0?[1,0,-1,0][((o.amount/90)%4+4)%4]:Math.cos(angle),sin=o.amount%90===0?[0,1,0,-1][((o.amount/90)%4+4)%4]:Math.sin(angle),sx=o.amount/100,sy=o.secondaryAmount/100,det=1-sx*sy,H=o.kind==='perspective'?homography(o.points,w,h):[];
+  out.fill(0);const cx=o.pivot?.x??(w-1)/2,cy=o.pivot?.y??(h-1)/2,angle=o.amount*Math.PI/180,cos=o.amount%90===0?[1,0,-1,0][((o.amount/90)%4+4)%4]:Math.cos(angle),sin=o.amount%90===0?[0,1,0,-1][((o.amount/90)%4+4)%4]:Math.sin(angle),sx=o.amount/100,sy=o.secondaryAmount/100,det=1-sx*sy,H=o.kind==='perspective'?homography(o.points,w,h):[];
   for(let y=0;y<h;y++)for(let x=0;x<w;x++){let u=x,v=y;if(o.kind==='rotate'){u=cos*(x-cx)+sin*(y-cy)+cx;v=-sin*(x-cx)+cos*(y-cy)+cy;}else if(o.kind==='shear'){u=((x-cx)-sx*(y-cy))/det+cx;v=((y-cy)-sy*(x-cx))/det+cy;}else if(o.kind==='offset'){u=x-o.amount;v=y-o.secondaryAmount;}else{const X=x+0.5,Y=y+0.5,den=H[6]*X+H[7]*Y+1;if(Math.abs(den)<1e-10)continue;u=(H[0]*X+H[1]*Y+H[2])/den-0.5;v=(H[3]*X+H[4]*Y+H[5])/den-0.5;}
    if(o.kind==='perspective'){const sides=o.points.map((a,i)=>{const b=o.points[(i+1)%4];return (b.x-a.x)*(y+0.5-a.y)-(b.y-a.y)*(x+0.5-a.x);});if(sides.some(v=>v>1e-9)&&sides.some(v=>v< -1e-9))continue;}
-   const i=sample(round(u),round(v));if(i>=0)out.set(before.subarray(i,i+4),at(x,y));}return out;
+   if(o.sampling==='bilinear'){const left=Math.floor(u),top=Math.floor(v),fx=u-left,fy=v-top,weights=[(1-fx)*(1-fy),fx*(1-fy),(1-fx)*fy,fx*fy],indices=[sample(left,top),sample(left+1,top),sample(left,top+1),sample(left+1,top+1)];let alpha=0;const rgb=[0,0,0];for(let j=0;j<4;j++){const i=indices[j];if(i<0)continue;const a=before[i+3]*weights[j];alpha+=a;for(let k=0;k<3;k++)rgb[k]+=before[i+k]*a;}const dest=at(x,y);out[dest+3]=round(alpha);if(alpha)for(let k=0;k<3;k++)out[dest+k]=round(rgb[k]/alpha);else{const i=sample(round(u),round(v));if(i>=0)out.set(before.subarray(i,i+3),dest);}}else{const i=sample(round(u),round(v));if(i>=0)out.set(before.subarray(i,i+4),at(x,y));}}return out;
  }
  if(o.kind==='outline'||o.kind==='alpha'){
   for(let y=0;y<h;y++)for(let x=0;x<w;x++){const i=at(x,y);if(o.kind==='alpha'&&o.variant==='threshold'){out[i+3]=before[i+3]>=o.amount?255:0;continue;}let high=0,low=255,nearest=-1,best=Infinity;for(let yy=-o.radius;yy<=o.radius;yy++)for(let xx=-o.radius;xx<=o.radius;xx++){if(Math.abs(xx)+Math.abs(yy)>o.radius)continue;const j=sample(x+xx,y+yy),alpha=j<0?0:before[j+3],distance=Math.abs(xx)+Math.abs(yy);if(alpha>high||alpha===high&&distance<best){high=alpha;nearest=j;best=distance;}low=Math.min(low,alpha);}
@@ -80,7 +88,7 @@ function studioRaster(source:Uint8ClampedArray,w:number,h:number,o:StudioOptions
 function result(doc:PixelDocument,o:StudioOptions){
  const chosen=doc.frames.slice(o.from,o.to+1).map(f=>f.id),selected=new Set(chosen);let affectedCels=0,outsideLinks=0;
  const layers=doc.layers.map(l=>{if(!o.layers.includes(l.id)||['timing','sequence'].includes(o.kind))return makeLayer(doc,l.id,l.name,l.visible,{...l.cels},l);const cels={...l.cels},mapped=new Map<Uint8ClampedArray,Uint8ClampedArray>();
-  for(const id of chosen){const before=l.cels[id];if(o.kind==='cels'&&o.variant==='unlink'){const next=before.slice();cels[id]=next;affectedCels++;continue;}if(mapped.has(before))continue;let next:Uint8ClampedArray;
+  for(const [position,id] of chosen.entries()){const before=l.cels[id];if(o.kind==='transform-tween'){const linear=position/(chosen.length-1),t=o.variant==='ease-in'?linear*linear:o.variant==='ease-out'?1-(1-linear)**2:o.variant==='smooth'?linear*linear*(3-2*linear):linear,source=rasterCel(doc,l,chosen[0]),transform={...defaultCoverageTransform(doc.width,doc.height),degrees:round(o.amount*t),scaleX:Math.max(1,round(100+(o.secondaryAmount-100)*t)),scaleY:Math.max(1,round(100+(o.secondaryAmount-100)*t)),x:round(o.points[0].x*t),y:round(o.points[0].y*t),pivot:o.pivot??defaultCoverageTransform(doc.width,doc.height).pivot,sampling:o.sampling??'nearest'};cels[id]=transformCoveragePixels(source,{width:doc.width,height:doc.height,values:new Uint8Array(doc.width*doc.height).fill(255)},transform,true);affectedCels++;continue;}if(o.kind==='cels'&&o.variant==='unlink'){const next=before.slice();cels[id]=next;affectedCels++;continue;}if(mapped.has(before))continue;let next:Uint8ClampedArray;
    if(o.kind==='cels')next=o.variant==='clear'?new Uint8ClampedArray(0):rasterCel(doc,l).slice();else next=studioRaster(before,doc.width,doc.height,o);
    if(!next.some(v=>v!==0))next=new Uint8ClampedArray(0);mapped.set(before,next);affectedCels++;
    // Copy detaches selected targets; other raster operations deliberately preserve links.
@@ -97,11 +105,13 @@ function result(doc:PixelDocument,o:StudioOptions){
  const output={...doc,layers,frames,tags};
  const before=encodeProject(doc,false),after=encodeProject(output,false),linkChange=layers.some((l,i)=>{const a=Object.values(doc.layers[i].cels),b=Object.values(l.cels);return a.some((p,j)=>a.some((q,k)=>(p===q)!==(b[j]===b[k])));});
  const buffers=new Set([...doc.layers,...layers].flatMap(l=>Object.values(l.cels))),historyBytes=[...buffers].reduce((n,p)=>n+p.byteLength,0)+(doc.layers.length+layers.length+doc.frames.length+frames.length+2*(doc.groups.length+doc.tags.length))*256;
- return {layers,frames,tags,changed:before!==after||linkChange,affectedCels,outsideLinks,historyBytes,preview:composite(output)};
+ return {layers,frames,tags,changed:before!==after||linkChange,affectedCels,outsideLinks,historyBytes,preview:composite(output,o.kind==='transform-tween'?doc.frames[o.to].id:doc.activeFrameId)};
 }
 export function prepareStudio(doc:PixelDocument,input:StudioOptions,historyBudget=8*1024*1024):StudioPlan{
- const o=validated(doc,input),count=doc.layers.filter(l=>o.layers.includes(l.id)).reduce((n,l)=>n+new Set(doc.frames.slice(o.from,o.to+1).map(f=>l.cels[f.id])).size,0),visits=count*(doc.width*doc.height*(o.kind==='outline'||o.kind==='alpha'&&o.variant!=='threshold'?1+2*o.radius*(o.radius+1):o.kind==='polygon'?o.points.length:1)+(o.kind==='polygon'?o.points.reduce((n,p,i)=>{const q=o.points[(i+1)%o.points.length];return n+1+Math.max(Math.abs(q.x-p.x),Math.abs(q.y-p.y));},0):0));
- if(visits>32*1024*1024)throw new Error('Studio work exceeds 32 million visits. Reduce radius, frame range or layers.');
+ const o=validated(doc,input),count=doc.layers.filter(l=>o.layers.includes(l.id)).reduce((n,l)=>n+new Set(doc.frames.slice(o.from,o.to+1).map(f=>l.cels[f.id])).size,0),visits=count*(doc.width*doc.height*(o.kind==='outline'||o.kind==='alpha'&&o.variant!=='threshold'?1+2*o.radius*(o.radius+1):o.kind==='polygon'?o.points.length:o.kind==='mosaic'?o.radius*o.radius:o.kind==='motion'?2*o.radius+1:o.kind==='edges'?9:o.sampling==='bilinear'?4:1)+(o.kind==='polygon'?o.points.reduce((n,p,i)=>{const q=o.points[(i+1)%o.points.length];return n+1+Math.max(Math.abs(q.x-p.x),Math.abs(q.y-p.y));},0):0));
+ const tweenVisits=o.kind==='transform-tween'?o.layers.length*(o.to-o.from+1)*doc.width*doc.height*4:0;
+ const construction=count*(o.kind==='text'?(o.text?.length??0)*15*o.radius*o.radius:o.kind==='iso'?(o.variant==='grid'?2*(o.amount+1):12)*(1+2*Math.max(o.amount,Math.abs(o.secondaryAmount))*o.radius):0);
+ if(visits+construction+tweenVisits>32*1024*1024)throw new Error('Studio work exceeds 32 million visits. Reduce radius, frame range or layers.');
  const r=result(doc,o);if(!Number.isFinite(historyBudget)||historyBudget<0||r.changed&&r.historyBytes>historyBudget)throw new Error('Studio operation exceeds the undo memory budget.');
  const plan=Object.freeze({baseline:encodeProject(doc,false),get options(){return structuredClone(o);},changed:r.changed,affectedCels:r.affectedCels,outsideLinks:r.outsideLinks,historyBytes:r.historyBytes,get frames(){return r.frames.map(f=>({...f}));},get preview(){return r.preview.slice();}});plans.set(plan,o);return plan;
 }

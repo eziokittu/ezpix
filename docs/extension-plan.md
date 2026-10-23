@@ -1,7 +1,7 @@
 # EzPix Chrome companion architecture
 
-Current: core/extension **0.133.0**, project v10 writer / v1-v10 readers.
-Read [current handoff](../../glitchbong/docs/ezpix-continue145.md),
+Current: core/extension **0.190.0**, project v13 writer / v1-v13 readers.
+Read [current handoff](../../glitchbong/docs/ezpix-continue202.md),
 [product spec](../../glitchbong/docs/ezpix-spec.md) and [core reference](../packages/core/README.md).
 Website UI belongs to sibling `glitchbong` on `ezpix`; this repository uses `main`.
 
@@ -138,9 +138,156 @@ See current handoff for exact arithmetic, measured gates and remaining work.
 
 ## Local phases 13ck-13cy - 2026-10-22
 
-Shared package/companion 0.133.0 adds editor command discovery/bindings, staged
+Historical package/companion 0.133.0 added editor command discovery/bindings, staged
 geometry/raster/cel/timeline operations and display-only onion helpers. Website
 integration uses the vendored package. Capture, protocol 1, retained-byte budgets,
 permissions and transfer destinations remain unchanged. Exact new editor tests
 and local companion regression evidence are in continuation 145. Project writer
 remains v10; no account/model/upload or additional permission is introduced.
+
+
+## Local phases 13cz-13dd
+
+Historical core/companion 0.138.0 added direct canvas helpers, bounded view guides,
+shortcut migration and the website's same-document split preview. Writer stays
+v10/readers v1-v10; capture protocol/permissions remain unchanged. See current
+handoff150 for exact local evidence. Physical devices/stylus, broader browsers,
+external human roundtrips, endurance/true peak memory, licence/name, hosted/offline
+updates and store gates remain open. The five new phases remain uncommitted.
+
+## Local phases 13de-13dn
+
+Core/companion 0.148.0 retains writer v10/readers v1-v10 and the same minimal
+capture permissions. The shared engine now supports pressure-aware brushes,
+authored bitmap text, isometric construction, transform pivots/bilinear sampling
+and baked motion/mosaic/posterization/edge/noise filters. Website controls consume
+the versioned core. These changes do not add capture permissions or a live
+layer-effect stack. Current contracts/evidence and remaining gates are in
+[handoff 160](../../glitchbong/docs/ezpix-continue192.md). Physical pen and release
+checks remain separate. The batch is uncommitted and unpublished.
+
+
+## Local phases 13do-13dx - soft selection workflows and baked tween
+
+Core/companion 0.158.0 adds a separate full-canvas byte coverage workflow:
+capture/feather; algebra/levels; soft mask brush with cancellation and keyboard
+paths; weighted fill/erase/alpha; affine and perspective transforms with pivots
+and nearest/bilinear sampling; existing shared filters through coverage; grayscale
+RGB PNG exchange and four session slots; tight/full raw-cel PNG/project extraction.
+Coverage stays outside v10 projects and never reinterprets old binary masks.
+Baked transform tweening adds angle, uniform scale, translation, easing and an
+end-frame preview over existing target frames. Each target becomes independent;
+outside linked peers remain intact. This does not add live keyframes/effect stacks.
+
+All editing remains local/deterministic, guarded by source/locks/budgets and
+atomic artwork Undo. Coverage history is separate. Current evidence and remaining
+feature/device/release gates are in [handoff 170](../../glitchbong/docs/ezpix-continue192.md). This batch is uncommitted; no push,
+deployment or publication was requested. Existing historical completion estimates
+have not been mechanically changed.
+
+
+## Local phases 13dy-13dz (0.180.0)
+
+Website layer blends and checked-layer metadata/duplicate/delete/group/reorder
+batches use the authoritative shared core. Writer v11 retains blend metadata;
+readers v1-v10 migrate to Normal. Capture protocol, conversion semantics and
+minimal permissions stay unchanged. Blend-aware composites reach previews and
+flattened exports; unsupported layered native export rejects explicit loss.
+See sibling `glitchbong/docs/ezpix-continue192.md` and `ezpix-progress.md` for
+current evidence, remaining phase estimates and separate release gates.
+
+
+## Phases 193-197 / 13eu-13ey: local image exchange
+
+Core/companion 0.185.0 adds animated GIF export/import, BMP/QOI exchange and
+static SVG pixel-rectangle export. Website Asset exports supports these formats
+and existing presets/batches. Native exchange stages GIF/BMP/QOI imports; the
+shared converter/companion supports BMP/QOI sources and reviewed two-step image
+downloads. It retains converted artwork, editable-project fallback and the real
+website handoff. No dependency, permission or project schema was added.
+
+Pure APIs: `exportGif`, `decodeGif`, `encodeBmp`, `decodeBmp`, `encodeQoi`,
+`decodeQoi`, `encodePixelSvg`, `rasterImport`; new `AssetExportOptions.format`
+values `gif`, `bmp`, `qoi`, `svg` work with existing preset and batch APIs.
+GIF uses full-canvas frames, disposal 2, transparent index 0, alpha cutoff 128,
+nearest 10 ms timing and an exact palette up to 255 visible RGBs, otherwise a
+fixed 6x7x6 grid. Plays 0 loops forever; plays 1 omits the Netscape extension;
+other counts encode repeats=plays-1. Literal LZW clears every 200 indices, trading
+compression efficiency for bounded predictable output. Decoder supports dynamic
+LZW up to 4096 entries, deferred clear, local tables, offsets, interlace and
+restore-background/previous disposal. Input sub-blocks are counted before exact
+allocation. Unsupported graphic controls/plain text fail. Loops/comments/app data
+are omitted with review. Imported timing clamps to 20-5000 ms.
+
+Inputs cap at 16 MiB, 256 pixels/axis, 32 frames and 4 MiB cel pixels. Exports cap
+at one megapixel/image, GIF at 16 MiB decoded/8 MiB encoded, SVG at 65536 scaled
+pixels. BMP writes top-down sRGB V4 BGRA with explicit channel masks; reads
+uncompressed RGB24/32 (BI_RGB32 ignores undefined alpha) and standard V4/V5 RGBA
+masks; embedded/calibrated profiles and other compression fail. QOI is straight
+RGBA, all standard chunk types decode, header colorspace 0 only; its encoder
+uses RGB/RGBA and runs. SVG includes numeric rectangles/colour/opacity only, no
+imported strings, script, external resources or tracing. Static exports choose
+the active frame unless a named range selects its first playback frame. They
+omit animation and project metadata. References never enter exported artwork.
+
+Reproduce with `node scripts/phase13euey-independent.mjs` and, after the website
+production build, `node scripts/phase13euey-ui.mjs`. Set `EZPIX_QA_RASTER=1` and
+`EZPIX_QA_PHASE8D=1` for `node scripts/phase23-e2e.mjs` to include real companion
+image downloads/BMP-QOI source import alongside toolbar capture/transfer tests.
+Physical devices, human external editors, minimum-hardware/performance, licence,
+hosted/offline/update and store publication remain separate open gates.
+
+
+## Phases 198-202 / 13ez-13fd: legacy raster, icon/cursor and APNG import
+
+Shared core/companion 0.190.0, project writer/readers v13/v1-v13. New pure APIs:
+`encodeTga`/`decodeTga`, `encodePcx`/`decodePcx`, `encodeIcon`/`decodeIcon`,
+`inspectIcon`, `decodeApng`. Asset export formats now include `tga`, `pcx`,
+`ico`, `cur`. Optional preset fields `hotspotX`/`hotspotY` default to zero;
+older seven-field presets remain valid. Hotspots use source-canvas coordinates
+and scale with nearest image scaling. Export rejects out-of-canvas hotspots.
+
+TGA: top-left raw BGRA32 with eight attribute bits and zero-offset TGA2 footer;
+reads raw/RLE RGB24, RGBA32, grayscale8 and all four origins. Colour maps,
+interleave, extension/developer areas and alternate alpha semantics fail.
+32-bit descriptor alpha=0 is treated as opaque, alpha=8 as straight alpha.
+PCX: ZSoft v5 RLE RGB24 export, even scanline padding, alpha flattened onto white.
+Decoder supports v5 8-bit indexed plus trailing 256-colour palette, or RGB24
+three-plane data. It checks scanline run bounds; indexed input becomes RGBA,
+not an indexed document mode. Both static imports cap at 256 pixels/axis,
+16 MiB input. Exports cap at one megapixel within existing bundle budgets.
+
+ICO/CUR: one PNG-backed image export; 1-16 PNG-backed resource alternatives on
+import, 1-256 pixels/axis, at most 4 MiB declared RGBA across the directory,
+16 MiB input. Directory dimensions, ranges, nonoverlap, reserved fields and
+hotspots validate before selected-resource PNG decoding. Legacy DIB resources
+fail explicitly. Alternatives are selected independently, never made into an
+animation. CUR export stores scaled hotspots; selected CUR import retains its
+hotspot as a full-canvas `Cursor hotspot` slice pivot. Export coordinates must
+be set explicitly. This does not install or change an operating-system cursor.
+
+APNG: PNG3 non-interlaced 8-bit RGB/RGBA/indexed subset inherited from the bounded
+PNG decoder. Validates all original CRCs, chunk order, acTL/fcTL/fdAT sequences,
+frame bounds/count and 4 MiB cel budget before frame inflation. At most 32 frames,
+256 pixels/axis, 4096 chunks and 16 MiB input. Composes SOURCE/OVER and NONE/
+BACKGROUND/PREVIOUS; OVER uses exact integer numerator/denominator and nearest
+byte rounding at each frame boundary. The default static fallback is validated
+and omitted when not an animation frame. Duration fractions round to whole ms
+and clamp to 20-5000 with review. Loop and source metadata are omitted. Custom
+profiles, interlacing, 16-bit samples and unsupported chunks fail explicitly.
+
+Website imports use the existing staged native-file review/replacement and
+unsaved-art confirmation; replacing is a new document, not artwork Undo. New
+exports use Prepare/Download, device/portable presets and batch ZIP contracts.
+The shared converter/Chrome companion adds TGA/PCX sources and reviewed TGA/
+PCX/ICO/CUR downloads. Hotspot edits invalidate even in-flight asynchronous
+preparation. Full animation/resource-selection imports remain editor workflows.
+No new runtime dependencies, permissions, AI, telemetry or image uploads.
+
+Reproduce: `node scripts/phase13ezfd-independent.mjs`, then after website build
+`node scripts/phase13ezfd-ui.mjs`. Real companion QA adds `EZPIX_QA_LEGACY=1`
+to `EZPIX_QA_PHASE8D=1` for `node scripts/phase23-e2e.mjs`. Run browser suites
+sequentially on port 3791. `phase13ezfd-report.mjs` aggregates current package,
+final build and fresh browser/integration results. Human external-app/OS cursor,
+physical devices, browser diversity, endurance/performance and release gates
+remain separate. See current handoff for exact recorded verification.

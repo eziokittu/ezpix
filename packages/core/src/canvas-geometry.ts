@@ -61,20 +61,21 @@ function transform(pixels:Uint8ClampedArray,oldWidth:number,oldHeight:number,g:{
  return output;
 }
 export function prepareCanvasGeometry(doc:PixelDocument,options:CanvasGeometryOptions,historyBudget=8*1024*1024):CanvasGeometryPlan {
+ if(doc.layers.some(l=>l.text||l.adjustment))throw new Error('Rasterize text and flatten adjustment layers before whole-canvas geometry.');if(doc.slices?.length)throw new Error('Clear sprite slices before changing canvas geometry; existing coordinates are preserved until then.');
  const g=geometry(doc,options);checkCelBudget(g.width,g.height,doc.layers.length,doc.frames.length);
  const changed=g.options.kind==='rotate'||g.options.kind==='flip'||g.width!==doc.width||g.height!==doc.height||g.x!==0||g.y!==0;
  let beforeBytes=0,afterBytes=0,clippedPixels=0;
  for(const layer of doc.layers){const seen=new Set<Uint8ClampedArray>();for(const frame of doc.frames){const p=layer.cels[frame.id];if(seen.has(p))continue;seen.add(p);beforeBytes+=p.byteLength;if(p.length)afterBytes+=g.width*g.height*4;
   for(let i=0;i<p.length;i+=4){const x=i/4%doc.width,y=Math.floor(i/4/doc.width);if((g.options.kind==='resize'||g.options.kind==='crop'||g.options.kind==='trim')&&(p[i]||p[i+1]||p[i+2]||p[i+3])&&(x<g.x||y<g.y||x>=g.x+g.width||y>=g.y+g.height))clippedPixels++;}
  }}
- const historyBytes=beforeBytes+afterBytes+2*(doc.layers.length+doc.frames.length+doc.groups.length+doc.tags.length)*256+2048;
+ const historyBytes=beforeBytes+afterBytes+doc.layers.reduce((n,l)=>n+(l.effects?.length??0)*256,0)+doc.layers.filter(l=>l.mask).length*(doc.width*doc.height+g.width*g.height)+2*(doc.layers.length+doc.frames.length+doc.groups.length+doc.tags.length)*256+2048;
  if(changed&&(!Number.isFinite(historyBudget)||historyBytes>historyBudget))throw new Error('Canvas operation exceeds the undo memory budget. Use a smaller canvas or fewer stored cels.');
- return Object.freeze({baseline:encodeProject(doc,false),...g,changed,clippedPixels,historyBytes,preview:transform(composite(doc),doc.width,doc.height,g)});
+ return Object.freeze({baseline:encodeProject(doc,false),...g,changed,clippedPixels,historyBytes,preview:composite({...doc,width:g.width,height:g.height,layers:canvasGeometryLayers(doc,{...g} as CanvasGeometryPlan)})});
 }
 /** Rebuild each same-layer buffer once; equal independent buffers stay independent, including empty links. */
 export function canvasGeometryLayers(doc:PixelDocument,plan:CanvasGeometryPlan):Layer[]{
  return doc.layers.map(layer=>{const mapped=new Map<Uint8ClampedArray,Uint8ClampedArray>(),cels:Record<string,Uint8ClampedArray>={};
   for(const frame of doc.frames){const p=layer.cels[frame.id];let next=mapped.get(p);if(!next){next=transform(p,doc.width,doc.height,plan);if(next.length&&!next.some(v=>v!==0))next=new Uint8ClampedArray(0);mapped.set(p,next);}cels[frame.id]=next;}
-  return makeLayer(doc,layer.id,layer.name,layer.visible,cels,layer);
+  const next=makeLayer(doc,layer.id,layer.name,layer.visible,cels,layer);if(layer.mask){const rgba=new Uint8ClampedArray(doc.width*doc.height*4);for(let i=0;i<layer.mask.values.length;i++)rgba[i*4]=layer.mask.values[i];const converted=transform(rgba,doc.width,doc.height,plan),values=new Uint8ClampedArray(plan.width*plan.height);for(let i=0;i<values.length;i++)values[i]=converted[i*4];next.mask={enabled:layer.mask.enabled,values};}return next;
  });
 }

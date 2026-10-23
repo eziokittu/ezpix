@@ -1,3 +1,4 @@
+import {decodeTga,decodePcx,LEGACY_IMAGE_LOSSES,exportAssets,defaultAssetExport,GIF_LOSSES,RASTER_EXCHANGE_LOSS,decodeBmp,decodeQoi} from './index.js';
 import { createDocument, defaultRecipe, validateRaster, quickRecipe, alphaBounds, type PixelDocument, type Raster, type Recipe } from './index.js';
 import { downloadFile, paintRaster, readImage } from './browser.js';
 import { encodeProject } from './index.js';
@@ -5,8 +6,8 @@ import { encodeProject } from './index.js';
 export function mountConverter(host: HTMLElement, options: { createWorker: () => Worker; onApply: (doc: PixelDocument) => void; applyLabel?: string }) {
   // This template is authored constant markup. Imported filenames/pixels never enter HTML.
   host.innerHTML = `<section class="ez-converter">
-    <header><div><h2>Turn an image into pixels</h2><p>Local processing · PNG/JPEG · up to 4 megapixels / 20 MiB</p></div></header>
-    <label class="ez-upload">Choose image <input data-file type="file" accept="image/png,image/jpeg"></label>
+    <header><div><h2>Turn an image into pixels</h2><p>Local processing. PNG/JPEG: up to 4 megapixels / 20 MiB. BMP/QOI/TGA/PCX: up to 256 pixels per axis / 16 MiB.</p></div></header>
+    <label class="ez-upload">Choose image <input data-file type="file" accept="image/png,image/jpeg,.bmp,.qoi,.tga,.pcx"></label>
     <p data-source class="ez-note">Upload an image, then crop and tune. Applying creates new artwork.</p>
     <div class="ez-quick"><strong>Fast starts</strong><button data-preset="sprite" disabled>Clean sprite</button><button data-preset="icon" disabled>Tiny icon</button><button data-preset="photo" disabled>Photo dither</button><button data-preset="tile" disabled>Centered tile 16</button><button data-trim disabled>Trim transparent edges</button></div>
     <div class="ez-convert-controls">
@@ -16,15 +17,16 @@ export function mountConverter(host: HTMLElement, options: { createWorker: () =>
     </div>
     <div class="ez-comparison"><section><h3>Original & crop</h3><canvas data-original></canvas></section><section><h3>Converted pixels</h3><canvas data-result></canvas><p data-palette class="ez-note"></p></section></div>
     <div class="ez-convert-actions"><button data-cancel>Cancel preview</button><button data-apply disabled class="ez-primary"></button><button data-png disabled>Download converted PNG</button><button data-project disabled>Download converted project</button><label><input data-retain type="checkbox" checked> Include original source in project</label></div>
-    <p role="status" data-status>Choose a local image to begin.</p><p class="ez-note">Included source means the entire imported image, including pixels outside the crop. Uncheck to omit it. Conversion reduces pixels, not objects. Photos usually need manual cleanup. Reapplying a recipe replaces artwork only after you choose to apply.</p>
+    <fieldset><legend>More local image formats</legend><label>Converted image format <select data-image-format><option value="gif">GIF</option><option value="bmp">BMP RGBA</option><option value="qoi">QOI RGBA</option><option value="svg">SVG pixel rectangles</option><option value="tga">TGA RGBA</option><option value="pcx">PCX RGB on white</option><option value="ico">ICO PNG-backed</option><option value="cur">CUR PNG-backed</option></select></label><p>${RASTER_EXCHANGE_LOSS} ${GIF_LOSSES} ${LEGACY_IMAGE_LOSSES}</p><label><input data-image-review type="checkbox"> I reviewed these image export differences</label><div data-hotspot-fields hidden><label>Cursor hotspot X <input data-hotspot-x type="number" min="0" max="255" value="0"></label><label>Cursor hotspot Y <input data-hotspot-y type="number" min="0" max="255" value="0"></label></div><button data-image-prepare disabled>Prepare converted image</button><button data-image-download disabled>Download prepared converted image</button><p data-image-prepared></p></fieldset><p role="status" data-status>Choose a local image to begin.</p><p class="ez-note">Included source means the entire imported image, including pixels outside the crop. Uncheck to omit it. Conversion reduces pixels, not objects. Photos usually need manual cleanup. Reapplying a recipe replaces artwork only after you choose to apply.</p>
   </section>`;
   const q = <T extends HTMLElement>(selector: string) => host.querySelector<T>(selector)!;
   let source: Raster | null = null, recipe: Recipe | null = null, result: PixelDocument | null = null, worker: Worker | null = null, timer: ReturnType<typeof setTimeout> | undefined, job = 0, disposed = false, loadId = 0, busy=false, workerHasSource=false;
-  let sourcePreview:HTMLCanvasElement|null=null;
+  let sourcePreview:HTMLCanvasElement|null=null,preparedImage:{blob:Blob;name:string}|null=null,imageJob=0;
+  function clearImage(){imageJob++;preparedImage=null;q<HTMLButtonElement>('[data-image-download]').disabled=true;q('[data-image-prepared]').textContent='';}
   const status = (text: string) => { q('[data-status]').textContent = text; };
-  const enable = (enabled: boolean) => { for (const key of ['apply','png','project']) q<HTMLButtonElement>(`[data-${key}]`).disabled = !enabled; };
+  const enable = (enabled: boolean) => { for (const key of ['apply','png','project','image-prepare']) q<HTMLButtonElement>(`[data-${key}]`).disabled = !enabled; };
   q('[data-apply]').textContent = options.applyLabel ?? 'Use conversion as new artwork';
-  function stop(reset=true) {clearTimeout(timer);if(reset||busy){worker?.terminate();worker=null;workerHasSource=false;}busy=false;job++;result=null;enable(false);}
+  function stop(reset=true) {clearImage();clearTimeout(timer);if(reset||busy){worker?.terminate();worker=null;workerHasSource=false;}busy=false;job++;result=null;enable(false);}
   function sync() {
     if (!recipe || !source) return;
     const values: Record<string, string | number | boolean> = { ...recipe, x: recipe.crop.x, y: recipe.crop.y, cropWidth: recipe.crop.width, cropHeight: recipe.crop.height } as unknown as Record<string,string|number|boolean>;
@@ -67,7 +69,7 @@ export function mountConverter(host: HTMLElement, options: { createWorker: () =>
   fileInput.onchange = async () => {
     const file = fileInput.files?.[0]; if (!file) return;
     const current = ++loadId; stop(); status('Reading image…');
-    try { const raster = await readImage(file); if (!disposed && current === loadId) load(raster); }
+    try { const ext=file.name.split('.').at(-1)?.toLowerCase();if(['bmp','qoi','tga','pcx'].includes(ext??'')&&file.size>16*1024*1024)throw new Error('Raster input exceeds 16 MiB.');const raster = ['bmp','qoi','tga','pcx'].includes(ext??'')?({bmp:decodeBmp,qoi:decodeQoi,tga:decodeTga,pcx:decodePcx}[ext as 'bmp'|'qoi'|'tga'|'pcx'])(new Uint8Array(await file.arrayBuffer())):await readImage(file); if (!disposed && current === loadId) load(raster); }
     catch (error) { if (!disposed && current === loadId) status(error instanceof Error ? error.message : 'Cannot read image.'); }
     fileInput.value = '';
   };
@@ -95,5 +97,8 @@ export function mountConverter(host: HTMLElement, options: { createWorker: () =>
   q('[data-apply]').onclick = () => { if (result) options.onApply(result); };
   q('[data-png]').onclick = () => { if (!result) return; q<HTMLCanvasElement>('[data-result]').toBlob(blob => { if (blob) downloadFile(blob,'ezpix-converted.png'); else status('PNG export failed.'); },'image/png'); };
   q('[data-project]').onclick = () => { if (!result) return; try { downloadFile(new Blob([encodeProject(result,q<HTMLInputElement>('[data-retain]').checked)],{type:'application/json'}),'ezpix-converted.ezpix'); } catch (e) { status(e instanceof Error ? e.message : 'Project export failed.'); } };
+  q('[data-image-format]').onchange=()=>{clearImage();q('[data-hotspot-fields]').hidden=q<HTMLSelectElement>('[data-image-format]').value!=='cur';};q('[data-hotspot-x]').onchange=clearImage;q('[data-hotspot-y]').onchange=clearImage;q('[data-image-review]').onchange=clearImage;
+  q('[data-image-prepare]').onclick=async()=>{if(!result)return;clearImage();if(!q<HTMLInputElement>('[data-image-review]').checked){status('Review image export differences first.');return;}const id=job,imageId=imageJob,document=result,format=q<HTMLSelectElement>('[data-image-format]').value as 'gif'|'bmp'|'qoi'|'svg'|'tga'|'pcx'|'ico'|'cur';try{const files=await exportAssets(document,{...defaultAssetExport(),format,...(format==='cur'?{hotspotX:Number(q<HTMLInputElement>('[data-hotspot-x]').value),hotspotY:Number(q<HTMLInputElement>('[data-hotspot-y]').value)}:{})}),entry=[...files].find(([path])=>path!=='assets.json')!;if(disposed||job!==id||imageId!==imageJob||result!==document||q<HTMLSelectElement>('[data-image-format]').value!==format||!q<HTMLInputElement>('[data-image-review]').checked)return;preparedImage={blob:new Blob([new Uint8Array(entry[1])],{type:format==='svg'?'image/svg+xml':format==='gif'?'image/gif':format==='bmp'?'image/bmp':'application/octet-stream'}),name:'ezpix-converted.'+format};q('[data-image-prepared]').textContent=preparedImage.name+' / '+preparedImage.blob.size+' bytes';q<HTMLButtonElement>('[data-image-download]').disabled=false;status('Image prepared. Review, then request the download.');}catch(error){if(!disposed&&job===id&&imageId===imageJob)status(error instanceof Error?error.message:'Image export failed.');}};
+  q('[data-image-download]').onclick=()=>{if(preparedImage&&q<HTMLInputElement>('[data-image-review]').checked){downloadFile(preparedImage.blob,preparedImage.name);status('Image download requested. Check browser downloads.');}};
   return { load, dispose() { disposed = true; loadId++; stop();if(sourcePreview)sourcePreview.width=sourcePreview.height=0;sourcePreview=null;source=null;recipe=null;host.replaceChildren(); } };
 }

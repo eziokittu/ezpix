@@ -1,16 +1,20 @@
+import {validateAuthoredMetadata,type PaletteOrganisation,type SpriteSlice} from './authored-metadata.js';
+import type {BitmapText} from './bitmap-text.js';
+import {validateLayerRendering,type LayerMask,type LiveEffect} from './layer-render.js';
 import {validateReferences,validateEncodedReferences,type ReferenceImage} from './references.js';
 import {validateTags,type AnimationTag} from './animation.js';
 import {validateGroups,groupedComposite,type LayerGroup} from './groups.js';
+import {validateBlendMode,type BlendMode} from './blend.js';
 import { validateRaster, validateRecipe, type Raster, type Recipe } from './conversion.js';
 import { DEFAULT_PALETTE, validatePalette } from './toolkit.js';
-export const ENGINE_VERSION = '0.133.0';
+export const ENGINE_VERSION = '0.190.0';
 export const MAX_SIZE = 256, MAX_LAYERS = 16, MAX_FRAMES=32, MAX_CEL_BYTES=4*1024*1024, MAX_PROJECT_BYTES = 24 * 1024 * 1024;
 export const MIN_FRAME_DURATION=20,MAX_FRAME_DURATION=5000;
 export type RGBA = readonly [number, number, number, number];
 export interface Frame {id:string;duration:number}
-export interface Layer { id: string; name: string; visible: boolean; locked:boolean; opacity:number; groupId:string|null; cels:Record<string,Uint8ClampedArray>;readonly pixels: Uint8ClampedArray }
+export interface Layer { id: string; name: string; visible: boolean; locked:boolean; opacity:number; blendMode:BlendMode; groupId:string|null; mask?:LayerMask; effects?:LiveEffect[]; text?:BitmapText;adjustment?:true; cels:Record<string,Uint8ClampedArray>;readonly pixels: Uint8ClampedArray }
 export interface PixelDocument {
-  width: number; height: number; name: string; activeLayerId: string;activeFrameId:string; palette:string[];
+  width: number; height: number; name: string; activeLayerId: string;activeFrameId:string; palette:string[];paletteOrganisation?:PaletteOrganisation;slices?:SpriteSlice[];
   conversion?: { source?: Raster; recipe: Recipe };
   /** Bottom to top. Layer metadata is global; explicit cels may link within a layer. */
   layers: Layer[];
@@ -26,11 +30,12 @@ export function checkCelBudget(width:number,height:number,layers:number,frames:n
   if(width*height*layers*frames*4>MAX_CEL_BYTES)throw new Error('Cel pixels exceed the 4 MiB project budget. Remove frames/layers or use a smaller canvas.');
 }
 export function validateDuration(duration:number) {if(!Number.isInteger(duration)||duration<MIN_FRAME_DURATION||duration>MAX_FRAME_DURATION)throw new Error('Frame duration must be 20–5000 whole milliseconds.');}
-export function makeLayer(doc:PixelDocument,id:string,name:string,visible:boolean,cels:Record<string,Uint8ClampedArray>,properties:{locked?:boolean;opacity?:number;groupId?:string|null}={}):Layer {
-  const layer:Layer={id,name,visible,locked:properties.locked??false,opacity:properties.opacity??255,groupId:properties.groupId??null,cels,get pixels(){return ensureCel(doc,this,doc.activeFrameId);}};Object.defineProperty(layer,'pixels',{enumerable:false});return layer;
+export function makeLayer(doc:PixelDocument,id:string,name:string,visible:boolean,cels:Record<string,Uint8ClampedArray>,properties:{locked?:boolean;opacity?:number;blendMode?:BlendMode;groupId?:string|null;mask?:LayerMask;effects?:LiveEffect[];text?:BitmapText;adjustment?:true}={}):Layer {
+  const layer:Layer={id,name,visible,locked:properties.locked??false,opacity:properties.opacity??255,blendMode:properties.blendMode??'normal',groupId:properties.groupId??null,cels,get pixels(){return ensureCel(doc,this,doc.activeFrameId);}};if(properties.mask)layer.mask={enabled:properties.mask.enabled,values:properties.mask.values};if(properties.effects?.length)layer.effects=properties.effects.map(e=>({...e}));if(properties.text)layer.text={...properties.text,color:[...properties.text.color]};if(properties.adjustment)layer.adjustment=true;Object.defineProperty(layer,'pixels',{enumerable:false});return layer;
 }
 /** Empty slots own zero bytes; this explicit mutable adapter allocates on demand. */
 export function ensureCel(doc:PixelDocument,layer:Layer,frameId=doc.activeFrameId):Uint8ClampedArray {
+  if(layer.text||layer.adjustment)throw new Error('Rasterize text or flatten adjustment layers before editing raw pixels.');
   const pixels=layer.cels[frameId];if(!pixels)throw new Error('Cel is missing.');
   if(!pixels.length){const next=new Uint8ClampedArray(doc.width*doc.height*4);for(const id of Object.keys(layer.cels))if(layer.cels[id]===pixels)layer.cels[id]=next;}
   return layer.cels[frameId];
@@ -62,7 +67,7 @@ export function createDocument(width = 64, height = 64, name = 'Untitled'): Pixe
 /** Straight RGBA source-over. Round once after all visible layers are blended. */
 export function composite(doc: PixelDocument,frameId=doc.activeFrameId): Uint8ClampedArray {
   if(!doc.frames.some(f=>f.id===frameId))throw new Error('Frame is missing.');
-  if(doc.groups.length)return groupedComposite(doc,frameId);
+  if(doc.groups.length||doc.layers.some(l=>l.text||l.adjustment||l.blendMode!=='normal'||l.mask?.enabled||l.effects?.some(e=>e.enabled)))return groupedComposite(doc,frameId);
   const visible=doc.layers.filter(l=>l.visible);
   if(visible.length===1&&visible[0].opacity===255){const output=rasterCel(doc,visible[0],frameId).slice();for(let p=0;p<output.length;p+=4)if(!output[p+3]){output[p]=0;output[p+1]=0;output[p+2]=0;}return output;}
   const output=new Uint8ClampedArray(doc.width*doc.height*4);
@@ -97,23 +102,23 @@ function rgba(value: unknown, length: number): Uint8ClampedArray {
 function encodeCels(doc:PixelDocument,layer:Layer){const seen=new Map<Uint8ClampedArray,string>();return doc.frames.map(f=>{const pixels=layer.cels[f.id];if(!(pixels instanceof Uint8ClampedArray)||pixels.length!==0&&pixels.length!==doc.width*doc.height*4)throw new Error('Invalid cel raster.');const link=seen.get(pixels);if(link)return {frameId:f.id,link};seen.set(pixels,f.id);return pixels.some(v=>v!==0)?{frameId:f.id,rgba:base64(pixels)}:{frameId:f.id,empty:true};});}
 function decodeCels(cels:{frameId:string;rgba?:string;empty?:boolean;link?:string}[],length:number){const out:Record<string,Uint8ClampedArray>={};for(const c of cels)out[c.frameId]=c.link?out[c.link]:c.empty?new Uint8ClampedArray(0):rgba(c.rgba,length);return out;}
 export function encodeProject(doc: PixelDocument, includeSource=true): string {
-  validateGroups(doc);validateTags(doc);validateReferences(doc);
+  validateAuthoredMetadata(doc);validateGroups(doc);validateTags(doc);validateReferences(doc);for(const layer of doc.layers){validateBlendMode(layer.blendMode);validateLayerRendering(layer,doc.width,doc.height);if(layer.text||layer.adjustment){if(layer.adjustment&&layer.blendMode!=='normal')throw new Error('Adjustment layers require Normal blend.');if(Object.values(layer.cels).some(p=>p.length))throw new Error('Special layers require empty raw cels.');}}
   const c=doc.conversion;
   const conversion=c?{recipe:c.recipe,source:includeSource&&c.source?{width:c.source.width,height:c.source.height,rgba:base64(c.source.pixels)}:undefined}:undefined;
   checkCelBudget(doc.width,doc.height,doc.layers.length,doc.frames.length);
-  const text=JSON.stringify({format:'ezpix',version:10,references:doc.references.map(r=>({id:r.id,name:r.name,width:r.width,height:r.height,rgba:base64(r.pixels)})),activeReferenceId:doc.activeReferenceId,tags:doc.tags,groups:doc.groups,engine:ENGINE_VERSION,width:doc.width,height:doc.height,name:doc.name,activeLayerId:doc.activeLayerId,activeFrameId:doc.activeFrameId,frames:doc.frames,palette:validatePalette(doc.palette),
-    layers:doc.layers.map(l=>({id:l.id,name:l.name,visible:l.visible,locked:l.locked,opacity:l.opacity,groupId:l.groupId,cels:encodeCels(doc,l)})),conversion});
+  const text=JSON.stringify({format:'ezpix',version:13,references:doc.references.map(r=>({id:r.id,name:r.name,width:r.width,height:r.height,rgba:base64(r.pixels),...(r.placement?{placement:r.placement}:{})})),...(doc.paletteOrganisation?{paletteOrganisation:doc.paletteOrganisation}:{}),...(doc.slices?.length?{slices:doc.slices}:{}),activeReferenceId:doc.activeReferenceId,tags:doc.tags,groups:doc.groups.map(g=>({id:g.id,name:g.name,parentId:g.parentId,visible:g.visible,locked:g.locked,opacity:g.opacity,...(g.effects?.length?{effects:g.effects.map(e=>({kind:e.kind,enabled:e.enabled,amount:e.amount}))}:{})})),engine:ENGINE_VERSION,width:doc.width,height:doc.height,name:doc.name,activeLayerId:doc.activeLayerId,activeFrameId:doc.activeFrameId,frames:doc.frames,palette:validatePalette(doc.palette),
+    layers:doc.layers.map(l=>({id:l.id,name:l.name,visible:l.visible,locked:l.locked,opacity:l.opacity,blendMode:l.blendMode,groupId:l.groupId,...(l.mask?{mask:{enabled:l.mask.enabled,gray:base64(l.mask.values)}}:{}),...(l.effects?.length?{effects:l.effects.map(e=>({kind:e.kind,enabled:e.enabled,amount:e.amount}))}:{}),...(l.text?{text:l.text}:{}),...(l.adjustment?{adjustment:true}:{}),cels:encodeCels(doc,l)})),conversion});
   if(new TextEncoder().encode(text).length>MAX_PROJECT_BYTES)throw new Error('Project exceeds 24 MiB. Omit the source to save a smaller file.');
   return text;
 }
 export function decodeProject(text:string): PixelDocument {
   if(text.length>MAX_PROJECT_BYTES||new TextEncoder().encode(text).length>MAX_PROJECT_BYTES)throw new Error('Project is too large (24 MiB maximum).');
   let data;try{data=JSON.parse(text);}catch{throw new Error('This is not a readable EzPix project.');}
-  if(!data||data.format!=='ezpix'||![1,2,3,4,5,6,7,8,9,10].includes(data.version))throw new Error('Unsupported EzPix project version.');
+  if(!data||data.format!=='ezpix'||![1,2,3,4,5,6,7,8,9,10,11,12,13].includes(data.version))throw new Error('Unsupported EzPix project version.');
   if(typeof data.name!=='string'||data.name.length>80)throw new Error('Invalid project name.');
   if(typeof data.width!=='number'||typeof data.height!=='number')throw new Error('Missing canvas dimensions.');
   const doc=createDocument(data.width,data.height,data.name),length=doc.width*doc.height*4;
-  if(data.version>=10)validateEncodedReferences(data.references,data.activeReferenceId);
+  if(data.version>=10){if(data.version<13)for(const r of data.references??[])if(r&&typeof r==='object')delete r.placement;validateEncodedReferences(data.references,data.activeReferenceId);}if(data.version>=13){if(data.paletteOrganisation!==undefined)doc.paletteOrganisation=data.paletteOrganisation;if(data.slices!==undefined)doc.slices=data.slices;}
   if(data.version>=3) {
     if(data.palette!==undefined)doc.palette=validatePalette(data.palette);
     if(!Array.isArray(data.layers)||data.layers.length<1||data.layers.length>MAX_LAYERS)throw new Error('Projects require 1–16 layers.');
@@ -126,6 +131,7 @@ export function decodeProject(text:string): PixelDocument {
       doc.frames=data.frames.map((f:Frame)=>({id:f.id,duration:f.duration}));doc.activeFrameId=data.activeFrameId;
     }
     if(data.version>=7){doc.tags=data.tags;validateTags(doc);}
+    validateAuthoredMetadata({...doc,palette:data.palette??doc.palette});
     const ids=new Set<string>();
     // Validate all layer metadata and encoded sizes before allocating layer buffers.
     for(const l of data.layers) {
@@ -142,11 +148,14 @@ export function decodeProject(text:string): PixelDocument {
         }
       }
       if(data.version>=5&&(typeof l.locked!=='boolean'||!Number.isInteger(l.opacity)||l.opacity<0||l.opacity>255))throw new Error('Invalid layer lock/opacity.');
+      if(data.version>=11)validateBlendMode(l.blendMode);
+      if(data.version>=13){validateLayerRendering({text:l.text,adjustment:l.adjustment},doc.width,doc.height);if(l.adjustment&&l.blendMode!=='normal')throw new Error('Adjustment layers require Normal blend.');if((l.text||l.adjustment)&&l.cels.some((c:{empty?:boolean;link?:string})=>!c.empty&&c.link===undefined))throw new Error('Special layers require empty raw cels.');}
+      if(data.version>=12){validateLayerRendering({effects:l.effects},doc.width,doc.height);if(l.mask!==undefined){const m=l.mask,n=doc.width*doc.height;if(!m||typeof m.enabled!=='boolean'||typeof m.gray!=='string'||m.gray.length!==4*Math.ceil(n/3)||!/^[A-Za-z0-9+/]*={0,2}$/.test(m.gray)||m.gray.length/4*3-(m.gray.endsWith('==')?2:m.gray.endsWith('=')?1:0)!==n)throw new Error('Invalid encoded layer mask.');}}
       ids.add(l.id);
     }
-    if(data.version>=6){doc.groups=data.groups;validateGroups({...doc,layers:data.layers});}
+    if(data.version>=6){doc.groups=data.groups;if(data.version<13)for(const g of doc.groups??[])if(g&&typeof g==='object')delete g.effects;validateGroups({...doc,layers:data.layers});}
     if(!ids.has(data.activeLayerId))throw new Error('Invalid selected layer.');
-    doc.layers=data.layers.map((l:{id:string;name:string;visible:boolean;locked?:boolean;opacity?:number;groupId?:string|null;rgba:string;cels:{frameId:string;rgba:string;empty?:boolean;link?:string}[]})=>makeLayer(doc,l.id,l.name,l.visible,data.version===3?{'frame-1':rgba(l.rgba,length)}:decodeCels(l.cels,length),data.version>=5?{locked:l.locked,opacity:l.opacity,groupId:data.version>=6?l.groupId:null}:{}));doc.activeLayerId=data.activeLayerId;
+    doc.layers=data.layers.map((l:{id:string;name:string;visible:boolean;locked?:boolean;opacity?:number;blendMode?:BlendMode;mask?:{enabled:boolean;gray:string};effects?:LiveEffect[];text?:BitmapText;adjustment?:true;groupId?:string|null;rgba:string;cels:{frameId:string;rgba:string;empty?:boolean;link?:string}[]})=>makeLayer(doc,l.id,l.name,l.visible,data.version===3?{'frame-1':rgba(l.rgba,length)}:decodeCels(l.cels,length),data.version>=5?{locked:l.locked,opacity:l.opacity,blendMode:l.blendMode,...(data.version>=12&&l.mask?{mask:{enabled:l.mask.enabled,values:rgba(l.mask.gray,doc.width*doc.height)}}:{}),...(data.version>=12&&l.effects?{effects:l.effects.map(e=>({kind:e.kind,enabled:e.enabled,amount:e.amount}))}:{}),...(data.version>=13&&l.text?{text:l.text}:{}),...(data.version>=13&&l.adjustment?{adjustment:true}:{}),groupId:data.version>=6?l.groupId:null}:{}));doc.activeLayerId=data.activeLayerId;
   } else {
     if(!Array.isArray(data.pixels)||data.pixels.length!==length||!data.pixels.every((v:unknown)=>typeof v==='number'&&Number.isInteger(v)&&v>=0&&v<=255))throw new Error('Invalid pixel data.');
     doc.cel.pixels.set(data.pixels);
@@ -161,7 +170,7 @@ export function decodeProject(text:string): PixelDocument {
     if(c.recipe.width!==doc.width||c.recipe.height!==doc.height)throw new Error('Recipe dimensions do not match artwork.');
     doc.conversion={recipe:c.recipe,...(source?{source}:{})};
   }
-  if(data.version>=10){doc.references=data.references.map((r:{id:string;name:string;width:number;height:number;rgba:string})=>({id:r.id,name:r.name,width:r.width,height:r.height,pixels:rgba(r.rgba,r.width*r.height*4)}));doc.activeReferenceId=data.activeReferenceId;}
+  if(data.version>=10){doc.references=data.references.map((r:{id:string;name:string;width:number;height:number;rgba:string;placement?:ReferenceImage['placement']})=>({...(r.placement?{placement:{...r.placement}}:{}),id:r.id,name:r.name,width:r.width,height:r.height,pixels:rgba(r.rgba,r.width*r.height*4)}));doc.activeReferenceId=data.activeReferenceId;}
   if(data.version<8)for(const l of doc.layers)for(const f of doc.frames)compactCel(l,f.id);
   return doc;
 }

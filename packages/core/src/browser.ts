@@ -44,5 +44,5 @@ export function paintRaster(canvas: HTMLCanvasElement, source: Raster) {
 }
 export function downloadFile(blob: Blob, name: string) {
   const url = URL.createObjectURL(blob), a = document.createElement('a');
-  a.href = url; a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(url), 30000);
+  a.href = url; a.download = name; document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 30000);
 }

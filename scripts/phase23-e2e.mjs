@@ -36,6 +36,8 @@ try {
   await start('region');await source.locator('#ezpix-capture-overlay').waitFor();
   const app=await capturedPage(async()=>{await source.mouse.move(50,90);await source.mouse.down();await source.mouse.move(150,170,{steps:6});await source.mouse.up();});
   console.log('Region preview ready');
+  if(process.env.EZPIX_QA_LEGACY==='1'){const {verifyCompanionLegacy}=await import('./phase13ezfd-companion.mjs');await verifyCompanionLegacy(app,context,id,artifacts);}
+  if(process.env.EZPIX_QA_RASTER==='1'){const {verifyCompanionRaster}=await import('./phase13euey-companion.mjs');await verifyCompanionRaster(app,context,id,artifacts);}
   const projectDownload=app.waitForEvent('download');await app.locator('[data-project]').click();const project=await projectDownload;await project.saveAs(resolve(artifacts,'region.ezpix'));
   const region=decodeProject(await readFile(resolve(artifacts,'region.ezpix'),'utf8'));
   await source.bringToFront();const fullDimensions=await worker.evaluate(async()=>{const [tab]=await chrome.tabs.query({active:true,lastFocusedWindow:true});const url=await chrome.tabs.captureVisibleTab(tab.windowId,{format:'png'});const b=Uint8Array.from(atob(url.split(',')[1]),c=>c.charCodeAt(0)),v=new DataView(b.buffer);return {width:v.getUint32(16),height:v.getUint32(20)};});await app.bringToFront();const viewport=await source.evaluate(()=>({width:innerWidth,height:innerHeight,dpr:devicePixelRatio}));const sx=fullDimensions.width/viewport.width,sy=fullDimensions.height/viewport.height;assert.equal(viewport.dpr,2);
