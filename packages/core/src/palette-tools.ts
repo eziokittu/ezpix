@@ -1,3 +1,5 @@
+import {editingPalette} from './editing-policy.js';
+import {validatePaletteSlots} from './document.js';
 import {activeLayer,encodeProject,rasterCel,type PixelDocument} from './document.js';
 import {validatePalette} from './toolkit.js';
 export interface PaletteAudit {counts:ReadonlyArray<{color:string;pixels:number}>;transparentPixels:number;outsidePixels:number;outsideSamples:ReadonlyArray<string>}
@@ -21,6 +23,6 @@ export function paletteRamp(options:PaletteRampOptions):string[]{
  return Array.from({length:options.steps},(_,i)=>'#'+[1,3,5].map(k=>{const numerator=parseInt(from.slice(k,k+2),16)*(span-i)+parseInt(to.slice(k,k+2),16)*i;return Math.floor((2*numerator+span)/(2*span)).toString(16).padStart(2,'0');}).join(''));
 }
 export function preparePaletteRamp(doc:PixelDocument,options:PaletteRampOptions):PaletteRampPlan {
- const ramp=paletteRamp(options),colors=validatePalette([...new Set([...validatePalette(doc.palette),...ramp])]);
+ const ramp=editingPalette(doc,paletteRamp(options)),colors=doc.editingMode?validatePaletteSlots([...doc.palette,...new Set(ramp.filter(c=>!doc.palette.includes(c)))]):validatePalette([...new Set([...validatePalette(doc.palette),...ramp])]);
  return Object.freeze({baseline:encodeProject(doc,false),options:Object.freeze({from:options.from.toLowerCase(),to:options.to.toLowerCase(),steps:options.steps}),ramp:Object.freeze(ramp),colors:Object.freeze(colors),added:colors.length-doc.palette.length});
 }

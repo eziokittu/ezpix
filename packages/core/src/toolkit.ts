@@ -1,3 +1,4 @@
+import {attachIndexedSelection,indexedSelectionPixels} from './indexed-selection.js';
 import { rasterCel,activeLayer, composite, type PixelDocument } from './document.js';
 import {validateSelectionMask,transformSelectionMask} from './selection-mask.js';
 import {permuteRaster,rotatedSize,type QuarterTurn} from './raster-transform.js';
@@ -21,7 +22,7 @@ export function shapePoints(shape:Shape,a:Point,b:Point,filled=false):Point[] {
   }
   return result;
 }
-export interface Selection {layerId:string;frameId:string;canvasWidth:number;canvasHeight:number;rect:Rect;baseline:Uint8ClampedArray;mask?:Uint8Array}
+export interface Selection {indexed?:object;layerId:string;frameId:string;canvasWidth:number;canvasHeight:number;rect:Rect;baseline:Uint8ClampedArray;mask?:Uint8Array}
 export type Transform={x:number;y:number;copy:boolean;flipX:boolean;flipY:boolean;rotation?:QuarterTurn;width?:number;height?:number};
 export function selectionSize(selection:Selection,options:Transform){
  const size=rotatedSize(selection.rect.width,selection.rect.height,options.rotation??0),width=options.width??size.width,height=options.height??size.height;
@@ -30,9 +31,10 @@ export function selectionSize(selection:Selection,options:Transform){
 }
 export function captureSelection(doc:PixelDocument,rect:Rect):Selection {
   checkRect(rect,doc.width,doc.height);const layer=activeLayer(doc);if(!layer.visible)throw new Error('Show the selected layer before selecting pixels.');
-  return {layerId:layer.id,frameId:doc.activeFrameId,canvasWidth:doc.width,canvasHeight:doc.height,rect:{...rect},baseline:rasterCel(doc,layer).slice()};
+  return attachIndexedSelection(doc,{layerId:layer.id,frameId:doc.activeFrameId,canvasWidth:doc.width,canvasHeight:doc.height,rect:{...rect},baseline:rasterCel(doc,layer).slice()});
 }
 export function transformSelection(selection:Selection,options:Transform):Uint8ClampedArray {
+  if(selection.indexed)return indexedSelectionPixels(selection,options);
   const {canvasWidth:w,canvasHeight:h,rect:r,baseline}=selection;
   if(![w,h].every(n=>Number.isInteger(n)&&n>=1&&n<=256)||!(baseline instanceof Uint8ClampedArray)||baseline.length!==w*h*4)throw new Error('Invalid selection.');
   const size=selectionSize(selection,options);checkRect(r,w,h);checkRect({...size,x:options.x,y:options.y},w,h);

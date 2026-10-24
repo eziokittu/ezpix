@@ -1,0 +1,17 @@
+import {execFileSync} from 'node:child_process';import {openSync,closeSync} from 'node:fs';
+const run=(name,args,env={})=>{console.log('START',name);const fd=openSync('artifacts/phase13hehn-'+name+'.log','w');try{execFileSync(args[0],args.slice(1),{stdio:['ignore',fd,fd],windowsHide:true,env:{...process.env,...env}});}finally{closeSync(fd);}console.log('PASS',name);};
+run('browser-readers',['python','-X','utf8','scripts/phase13hehn-browser-readers.py']);
+run('workspace-fixtures',[process.execPath,'scripts/phase13guhd-independent.mjs']);
+run('canvas-fixtures',[process.execPath,'scripts/phase13gkgt-independent.mjs']);
+run('storage-fixtures',[process.execPath,'scripts/phase13gagj-independent.mjs']);
+run('rgba-masks',[process.execPath,'scripts/phase13blbz-ui.mjs']);
+run('workspace-regression',[process.execPath,'scripts/phase13guhd-ui.mjs']);
+run('workspace-guards',[process.execPath,'scripts/phase13guhd-ui-extra.mjs']);
+run('workspace-readers',['python','-X','utf8','scripts/phase13guhd-browser-readers.py']);
+run('canvas-regression',[process.execPath,'scripts/phase13gkgt-ui.mjs']);
+run('canvas-readers',['python','-X','utf8','scripts/phase13gkgt-browser-readers.py']);
+run('studio-regression',[process.execPath,'scripts/phase13gagj-ui.mjs']);
+run('studio-extra',[process.execPath,'scripts/phase13gagj-ui-extra.mjs']);
+run('studio-readers',['python','-X','utf8','scripts/phase13gagj-browser-readers.py']);
+run('drawing-regression',[process.execPath,'scripts/phase9b-drawing.mjs']);
+run('companion',[process.execPath,'scripts/phase23-e2e.mjs'],{EZPIX_CHROMIUM_PATH:'C:\\Users\\User\\AppData\\Local\\ms-playwright\\chromium-1234\\chrome-win64\\chrome.exe',EZPIX_QA_HARNESS:'0',EZPIX_QA_PHASE8D:'1',EZPIX_QA_RASTER:'1',EZPIX_QA_LEGACY:'1',EZPIX_QA_OUTPUT:'1'});

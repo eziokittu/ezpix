@@ -1,3 +1,4 @@
+import {indexedSlotSelectionMask} from './indexed-selection.js';
 import type {Selection,Point} from './toolkit.js';
 import {validateSelectionMask} from './selection-mask.js';
 import {encodeNativePng,decodeNativePng} from './native-png.js';
@@ -32,6 +33,7 @@ export function combineSelectionMask(s:Selection,operand:Uint8Array,combine:Mask
 }
 /** Source coordinates are local; tolerance is max absolute encoded-byte difference from seed. */
 export function advancedSelectionMask(s:Selection,op:AdvancedMaskOperation,combine:MaskCombine='replace'):Selection{
+ if(s.indexed&&(op?.kind==='wand'||op?.kind==='colour'))return indexedSlotSelectionMask(s,op,combine);
  check(s);const {width:w,height:h}=s.rect,n=w*h,src=s.mask??new Uint8Array(n).fill(1);let out=new Uint8Array(n);
  if(!op||!['wand','colour','alpha','polygon','lasso','brush','shape','morphology','holes','components'].includes(op.kind))throw new Error('Unknown advanced selection operation.');
  const raw=(i:number)=>((Math.floor(i/w)+s.rect.y)*s.canvasWidth+i%w+s.rect.x)*4;

@@ -1,3 +1,4 @@
+import {editingPixels} from './editing-policy.js';
 import {activeLayer,rasterCel,linkedFrames,encodeProject,decodeProject,createDocument,makeLayer,copyLayer,checkCelBudget,composite,type PixelDocument} from './document.js';
 import {layerEditable} from './groups.js';
 import {copySelectionMask} from './selection-mask.js';
@@ -14,7 +15,7 @@ export function prepareSelectionPaste(target:PixelDocument,source:PixelDocument,
  const layer=activeLayer(target);if(!layerEditable(target,layer))throw new Error('Show and unlock the destination layer and its groups before pasting.');
  const settings=Object.freeze({sourceMode:options.sourceMode,frameId:options.frameId,layerId:options.layerId,destination:options.destination,x:options.x,y:options.y,name:options.name.trim()});
  if(settings.destination==='new-layer')checkCelBudget(target.width,target.height,target.layers.length+1,target.frames.length);
- const raw=rasterCel(source,sourceLayer,settings.frameId),before=rasterCel(target,layer),linked=settings.destination==='cel'?linkedFrames(target,layer).length:1;
+ const raw=editingPixels(target,rasterCel(source,sourceLayer,settings.frameId)),before=rasterCel(target,layer),linked=settings.destination==='cel'?linkedFrames(target,layer).length:1;
  let changed=settings.destination==='new-layer';
  for(let y=0;y<source.height;y++)for(let x=0;x<source.width;x++){if(members&&!members[y*source.width+x])continue;const a=(y*source.width+x)*4,b=((y+settings.y)*target.width+x+settings.x)*4;for(let c=0;c<4;c++)if(raw[a+c]!==before[b+c])changed=true;}
  const retained=new Set(target.layers.flatMap(l=>Object.values(l.cels))),historyBytes=settings.destination==='cel'?3*target.width*target.height*4+256+linked*64:[...retained].reduce((n,p)=>n+p.byteLength,0)+target.width*target.height*4+(2*target.layers.length+1+2*target.frames.length+2*target.groups.length+2*target.tags.length)*256+2048;

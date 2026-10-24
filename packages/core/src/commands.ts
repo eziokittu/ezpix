@@ -1,5 +1,12 @@
 /** Shared discoverable editor command IDs and portable Mod (Ctrl/Command) bindings. */
 export const EDITOR_COMMANDS=[
+ {id:'indexed-png',label:'Open indexed PNG',group:'Image',binding:''},
+ {id:'indexed-studio',label:'Indexed studio: storage and tools',group:'Image',binding:''},
+ {id:'indexed-cel',label:'Indexed cel exchange',group:'Image',binding:''},
+ {id:'editing-policy',label:'Grayscale editing policy',group:'Image',binding:''},
+ {id:'workspace-documents',label:'Workspace documents and library',group:'File',binding:''},
+ {id:'source-grayscale',label:'Convert source to grayscale',group:'Image',binding:''},
+ {id:'document-output',label:'Document output: grayscale and palette',group:'Image',binding:''},
  ...['references','text','effects','palette','slices'].map(id=>({id:`authored.${id}`,label:({references:'Reference placement and tracing',text:'Editable bitmap text layers',effects:'Adjustment layers and group effects',palette:'Palette groups and locks',slices:'Sprite slices and pivots'} as Record<string,string>)[id],group:'Authoring',binding:''})),
  {id:'asset-export',label:'APNG, asset bundles and export presets',group:'Export',binding:''},
  {id:'layer-studio',label:'Layer masks, live effects and cels',group:'Layer',binding:''},
@@ -26,7 +33,7 @@ export function validateCommandBindings(input:unknown):CommandBindings{
 }
 /** Add newly introduced unbound commands while preserving validated device preferences. */
 export function upgradeCommandBindings(input:unknown):CommandBindings{
- if(!input||typeof input!=='object'||Array.isArray(input)||Object.keys(input).some(id=>!EDITOR_COMMANDS.some(c=>c.id===id)))throw new Error('Unknown shortcut settings.');if(EDITOR_COMMANDS.filter(c=>!c.id.startsWith('canvas.')&&!c.id.startsWith('authored.')&&c.id!=='asset-export'&&c.id!=='split'&&c.id!=='coverage'&&c.id!=='layer-studio'&&c.id!=='studio.transform-tween'&&!['studio.text', 'studio.iso', 'studio.motion', 'studio.mosaic', 'studio.posterize', 'studio.edges', 'studio.noise'].includes(c.id)).some(c=>!Object.hasOwn(input,c.id)))throw new Error('Shortcut settings must contain every known command from the previous version.');return validateCommandBindings({...defaultCommandBindings(),...input});
+ if(!input||typeof input!=='object'||Array.isArray(input)||Object.keys(input).some(id=>!EDITOR_COMMANDS.some(c=>c.id===id)))throw new Error('Unknown shortcut settings.');if(EDITOR_COMMANDS.filter(c=>!c.id.startsWith('canvas.')&&!c.id.startsWith('authored.')&&c.id!=='asset-export'&&c.id!=='document-output'&&c.id!=='workspace-documents'&&c.id!=='indexed-png'&&c.id!=='indexed-studio'&&c.id!=='indexed-cel'&&c.id!=='editing-policy'&&c.id!=='source-grayscale'&&c.id!=='split'&&c.id!=='coverage'&&c.id!=='layer-studio'&&c.id!=='studio.transform-tween'&&!['studio.text', 'studio.iso', 'studio.motion', 'studio.mosaic', 'studio.posterize', 'studio.edges', 'studio.noise'].includes(c.id)).some(c=>!Object.hasOwn(input,c.id)))throw new Error('Shortcut settings must contain every known command from the previous version.');return validateCommandBindings({...defaultCommandBindings(),...input});
 }
 export function commandForKey(bindings:CommandBindings,event:{key:string;ctrlKey:boolean;metaKey:boolean;shiftKey:boolean;altKey:boolean}):string|undefined{
  const binding=[...((event.ctrlKey||event.metaKey)?['Mod']:[]),...(event.shiftKey?['Shift']:[]),...(event.altKey?['Alt']:[]),event.key.toLowerCase()].join('+');return EDITOR_COMMANDS.find(c=>bindings[c.id]===binding)?.id;

@@ -1,3 +1,15 @@
+import {prepareIndexedSelection} from './indexed-selection.js';
+import {indexedGeometryAuthored} from './indexed-geometry.js';
+export * from './indexed-selection.js';
+export * from './indexed-geometry.js';
+import {validateIndexedDocument} from './indexed-document.js';
+export * from './indexed-document.js';
+export * from './indexed-cel.js';
+import {editingInk,editingPixels,editingPalette,validateEditingPolicy} from './editing-policy.js';
+export * from './editing-policy.js';
+export * from './document-workspace.js';
+import {regenerateDocumentOutput,setDocumentOutput,type DocumentOutputPlan,type DocumentOutput} from './document-output.js';
+export * from './document-output.js';
 export * from './cel-grid.js';
 export * from './reference-overlay.js';
 export * from './asset-export.js';
@@ -52,7 +64,7 @@ import {finishPixels} from './quick.js';
 import { brushOffsets, type Brush } from './brush.js';
 export * from './brush.js';
 export * from './color.js';
-import { linkedFrames,ensureCel,rasterCel,compactCel,encodeProject,composite, activeLayer, MAX_LAYERS, checkCelBudget,copyLayer,makeLayer,validateDuration, type Frame, type PixelDocument, type RGBA, type Layer } from './document.js';
+import { linkedFrames,ensureCel,rasterCel,compactCel,encodeProject,composite, activeLayer, MAX_LAYERS, checkCelBudget,copyLayer,makeLayer,validatePaletteSlots,validateDuration, type Frame, type PixelDocument, type RGBA, type Layer } from './document.js';
 import { shapePoints, transformSelection, validatePalette, type Shape, type Point, type Selection, type Transform } from './toolkit.js';
 export * from './document.js';
 export * from './conversion.js';
@@ -62,7 +74,7 @@ export * from './tiles.js';
 export * from './quick.js';
 export type Delta = { index: number; before: number[]; after: number[] };
 type LayerState = { width:number;height:number;conversion:PixelDocument['conversion'];layers: Layer[]; activeLayerId: string;frames:Frame[];activeFrameId:string;groups:LayerGroup[];tags:AnimationTag[] };
-type Command = { bytes: number } & ({kind:'authored';before:AuthoredState;after:AuthoredState}|{kind:'references';before:ReferenceState;after:ReferenceState}|{ kind:'pixels'; layerId:string;frameId:string;frames:string[];buffer:Uint8ClampedArray;changes:Delta[] } | {kind:'bitmap';layerId:string;frameId:string;frames:string[];buffer:Uint8ClampedArray;before:Uint8ClampedArray;after:Uint8ClampedArray} | {kind:'layers'; before:LayerState; after:LayerState}|{kind:'palette';before:string[];after:string[]});
+type Command = { bytes: number } & ({kind:'output';before:DocumentOutput;after:DocumentOutput}|{kind:'authored';before:AuthoredState;after:AuthoredState}|{kind:'references';before:ReferenceState;after:ReferenceState}|{ kind:'pixels'; layerId:string;frameId:string;frames:string[];buffer:Uint8ClampedArray;changes:Delta[] } | {kind:'bitmap';layerId:string;frameId:string;frames:string[];buffer:Uint8ClampedArray;before:Uint8ClampedArray;after:Uint8ClampedArray} | {kind:'layers'; before:LayerState; after:LayerState}|{kind:'palette';before:string[];after:string[]});
 /** A gesture is one command; one entry per changed pixel, including mirrored pixels. */
 export class PixelEditor {
   readonly document: PixelDocument;
@@ -75,6 +87,7 @@ export class PixelEditor {
   get canUndo() { return this.undoStack.length > 0; }
   get canRedo() { return this.redoStack.length > 0; }
   get historyBytes() { return this.bytes; }
+  applyDocumentOutput(plan:DocumentOutputPlan){this.commit();const fresh=regenerateDocumentOutput(this.document,plan,this.historyBudget);if(!fresh.changed)return false;const before=this.document.outputMode??'rgba';setDocumentOutput(this.document,fresh.mode);this.record({kind:'output',before,after:fresh.mode,bytes:fresh.historyBytes});return true;}
   applyAuthored(plan:AuthoredPlan){this.commit();const fresh=regenerateAuthored(this.document,plan,this.historyBudget);if(!fresh.plan.changed)return false;const before=authoredState(this.document);restoreAuthored(this.document,fresh.state);this.record({kind:'authored',before,after:authoredState(this.document),bytes:fresh.plan.historyBytes});return true;}
   applyLayerWorkflow(plan:LayerWorkflowPlan){this.commit();const fresh=regenerateLayerWorkflow(this.document,plan,this.historyBudget);if(!fresh.plan.changed)return false;return this.changeLayers(()=>{this.document.layers=fresh.layers;return true;});}
   applyStudio(plan:StudioPlan){this.commit();const fresh=regenerateStudio(this.document,plan,this.historyBudget);if(!fresh.changed)return false;return this.changeLayers(()=>{this.document.layers=fresh.layers;this.document.frames=fresh.frames;this.document.tags=fresh.tags;return true;});}
@@ -85,11 +98,12 @@ export class PixelEditor {
   selectReference(id:string){return this.changeReferences({references:this.document.references.slice(),activeReferenceId:id});}
   renameReference(id:string,name:string){if(!this.document.references.some(r=>r.id===id))throw new Error('Reference image is missing.');return this.changeReferences({references:this.document.references.map(r=>r.id===id?{...r,name:name.trim()}:r),activeReferenceId:this.document.activeReferenceId});}
   removeReference(id:string){if(!this.document.references.some(r=>r.id===id))throw new Error('Reference image is missing.');const references=this.document.references.filter(r=>r.id!==id);return this.changeReferences({references,activeReferenceId:this.document.activeReferenceId===id?references[0]?.id??null:this.document.activeReferenceId});}
-  setPalette(colors:readonly string[]) {this.commit();const after=validatePalette(colors),before=this.document.palette.slice();if(before.join()===after.join())return false;if(this.document.paletteOrganisation&&!before.every((c,i)=>after[i]===c))throw new Error('Use Authored studio palette organisation to preserve groups and locks.');this.document.palette=after;this.record({kind:'palette',before,after,bytes:(before.length+after.length)*64});return true;}
+  setPalette(colors:readonly string[]) {this.commit();const after=editingPalette(this.document,this.document.editingMode?validatePaletteSlots([...colors]):validatePalette(colors)),before=this.document.palette.slice();if(before.join()===after.join())return false;if(this.document.paletteOrganisation&&!before.every((c,i)=>after[i]===c))throw new Error('Use Authored studio palette organisation to preserve groups and locks.');this.document.palette=after;this.record({kind:'palette',before,after,bytes:(before.length+after.length)*64});return true;}
   applyPaletteRamp(plan:PaletteRampPlan){this.commit();if(!plan||plan.baseline!==encodeProject(this.document,false))throw new Error('Ramp source changed. Prepare again.');return this.setPalette(preparePaletteRamp(this.document,plan.options).colors);}
   applyPaletteOperation(plan:PaletteOperationPlan){this.commit();if(!plan||plan.baseline!==encodeProject(this.document,false))throw new Error('Palette source changed. Prepare again.');return this.setPalette(preparePaletteOperation(this.document,plan.options).colors);}
   applyCanvasGeometry(plan:CanvasGeometryPlan){
     this.commit();const doc=this.document;
+    if(doc.indexed)return this.applyAuthored(indexedGeometryAuthored(doc,plan,this.historyBudget));
     if(!plan||plan.baseline!==encodeProject(doc,false))throw new Error('Canvas source changed. Prepare again.');
     const fresh=prepareCanvasGeometry(doc,plan.options,this.historyBudget);if(!fresh.changed)return false;
     // Allocate only after validation/budget checks; mutation starts after every cel is ready.
@@ -106,6 +120,7 @@ export class PixelEditor {
   }
   applySelection(selection:Selection,options:Transform) {
     this.commit();const doc=this.document,layer=activeLayer(doc);
+    if(doc.indexed)return this.applyAuthored(prepareIndexedSelection(doc,selection,options,this.historyBudget));
     if(layer.id!==selection.layerId||doc.activeFrameId!==selection.frameId||!layerEditable(doc,layer)||doc.width!==selection.canvasWidth||doc.height!==selection.canvasHeight||rasterCel(doc,layer).length!==selection.baseline.length||!rasterCel(doc,layer).every((v,i)=>v===selection.baseline[i]))throw new Error('The selected cel changed. Cancel and select its pixels again.');
     const pixels=transformSelection(selection,options),baseline=rasterCel(doc,layer);
     if(pixels.every((v,i)=>v===baseline[i]))return false;
@@ -164,7 +179,7 @@ export class PixelEditor {
   importLayer(source:PixelDocument) {
     const plan=companionImportPlan(this.document,source,'layer');
     return this.changeLayers(()=>{const doc=this.document;let next=1;while(doc.layers.some(l=>l.id===`layer-${next}`))next++;const id=`layer-${next}`;
-      const cels=Object.fromEntries(doc.frames.map(f=>[f.id,f.id===doc.activeFrameId?plan.pixels!.slice():new Uint8ClampedArray(0)]));
+      const cels=Object.fromEntries(doc.frames.map(f=>[f.id,f.id===doc.activeFrameId?editingPixels(doc,plan.pixels!):new Uint8ClampedArray(0)]));
       doc.layers.splice(doc.layers.indexOf(activeLayer(doc))+1,0,makeLayer(doc,id,plan.name!,true,cels,{groupId:activeLayer(doc).groupId}));doc.activeLayerId=id;return true;});
   }
   selectFrame(id:string) {this.commit();if(!this.document.frames.some(f=>f.id===id))throw new Error('Frame is missing.');this.document.activeFrameId=id;}
@@ -193,6 +208,7 @@ export class PixelEditor {
   private layerState():LayerState {const doc=this.document;return {width:doc.width,height:doc.height,conversion:doc.conversion,layers:doc.layers.map(l=>copyLayer(doc,l)),activeLayerId:doc.activeLayerId,frames:doc.frames.map(f=>({...f})),activeFrameId:doc.activeFrameId,groups:doc.groups.map(g=>({...g})),tags:doc.tags.map(t=>({...t}))}; }
   private restore(state:LayerState) {const doc=this.document;doc.width=state.width;doc.height=state.height;if(state.conversion)doc.conversion=state.conversion;else delete doc.conversion;doc.tags=state.tags.map(t=>({...t}));doc.groups=state.groups.map(g=>({...g}));doc.frames=state.frames.map(f=>({...f}));doc.activeFrameId=state.activeFrameId;doc.layers=state.layers.map(l=>copyLayer(doc,l));doc.activeLayerId=state.activeLayerId; }
   private record(command:Command) {
+    try{validateIndexedDocument(this.document);validateEditingPolicy(this.document);}catch(error){this.restoreCommand(command,'before');throw error;}
     this.bytes-=this.redoStack.reduce((n,c)=>n+c.bytes,0);this.redoStack=[];
     this.undoStack.push(command);this.bytes+=command.bytes;
     while(this.bytes>this.historyBudget||this.undoStack.length>100){this.bytes-=this.undoStack.shift()!.bytes;this.evicted=true;}
@@ -298,6 +314,8 @@ export class PixelEditor {
   toggleLayer() {return this.changeLayers(()=>{const layer=activeLayer(this.document);layer.visible=!layer.visible;return true;});}
   moveLayer(direction:1|-1) {return this.moveNode(this.document.activeLayerId,direction);}
   paint(x: number, y: number, color: RGBA, mirrorX = false, mirrorY = false) {
+    if(this.document.indexed)return; // Index-preserving edits use staged Indexed studio operations.
+    color=editingInk(this.document,color);
     if(!layerEditable(this.document,activeLayer(this.document)))return;
     const { width, height } = this.document;
     for (const px of mirrorX ? [x, width - 1 - x] : [x]) {
@@ -355,25 +373,24 @@ export class PixelEditor {
     }else this.record({kind:'pixels',layerId:this.document.activeLayerId,frameId:this.document.activeFrameId,frames:linkedFrames(this.document,activeLayer(this.document)),buffer:this.document.cel.pixels,changes,bytes:changes.length*512+this.document.cel.pixels.byteLength+linkedFrames(this.document,activeLayer(this.document)).length*64});
     compactCel(activeLayer(this.document),this.document.activeFrameId);return true;
   }
+  private restoreCommand(command:Command,side:'before'|'after'){
+    if(command.kind==='output')setDocumentOutput(this.document,command[side]);
+    else if(command.kind==='authored')restoreAuthored(this.document,command[side]);
+    else if(command.kind==='references'){this.document.references=command[side].references.map(r=>({...r}));this.document.activeReferenceId=command[side].activeReferenceId;}
+    else if(command.kind==='palette')this.document.palette=command[side].slice();
+    else if(command.kind==='layers')this.restore(command[side]);
+    else if(command.kind==='bitmap'){const layer=this.document.layers.find(l=>l.id===command.layerId)!;this.document.activeLayerId=layer.id;this.document.activeFrameId=command.frameId;for(const id of command.frames)layer.cels[id]=command.buffer;layer.pixels.set(command[side]);}
+    else {const layer=this.document.layers.find(l=>l.id===command.layerId)!;this.document.activeLayerId=layer.id;this.document.activeFrameId=command.frameId;for(const id of command.frames)layer.cels[id]=command.buffer;for(const d of command.changes)layer.pixels.set(d[side],d.index);}
+  }
   undo() {
     const command = this.undoStack.pop(); if (!command) return false;
-    if(command.kind==='authored')restoreAuthored(this.document,command.before);
-    else if(command.kind==='references'){this.document.references=command.before.references.map(r=>({...r}));this.document.activeReferenceId=command.before.activeReferenceId;}
-    else if(command.kind==='palette')this.document.palette=command.before.slice();
-    else if(command.kind==='layers')this.restore(command.before);
-    else if(command.kind==='bitmap'){const layer=this.document.layers.find(l=>l.id===command.layerId)!;this.document.activeLayerId=layer.id;this.document.activeFrameId=command.frameId;for(const id of command.frames)layer.cels[id]=command.buffer;layer.pixels.set(command.before);}
-    else {const layer=this.document.layers.find(l=>l.id===command.layerId)!;this.document.activeLayerId=layer.id;this.document.activeFrameId=command.frameId;for(const id of command.frames)layer.cels[id]=command.buffer;for(const d of command.changes)layer.pixels.set(d.before,d.index);}
+    this.restoreCommand(command,'before');
     if(command.kind==='pixels'||command.kind==='bitmap')compactCel(activeLayer(this.document),this.document.activeFrameId);
     this.redoStack.push(command); return true;
   }
   redo() {
     const command = this.redoStack.pop(); if (!command) return false;
-    if(command.kind==='authored')restoreAuthored(this.document,command.after);
-    else if(command.kind==='references'){this.document.references=command.after.references.map(r=>({...r}));this.document.activeReferenceId=command.after.activeReferenceId;}
-    else if(command.kind==='palette')this.document.palette=command.after.slice();
-    else if(command.kind==='layers')this.restore(command.after);
-    else if(command.kind==='bitmap'){const layer=this.document.layers.find(l=>l.id===command.layerId)!;this.document.activeLayerId=layer.id;this.document.activeFrameId=command.frameId;for(const id of command.frames)layer.cels[id]=command.buffer;layer.pixels.set(command.after);}
-    else {const layer=this.document.layers.find(l=>l.id===command.layerId)!;this.document.activeLayerId=layer.id;this.document.activeFrameId=command.frameId;for(const id of command.frames)layer.cels[id]=command.buffer;for(const d of command.changes)layer.pixels.set(d.after,d.index);}
+    this.restoreCommand(command,'after');
     if(command.kind==='pixels'||command.kind==='bitmap')compactCel(activeLayer(this.document),this.document.activeFrameId);
     this.undoStack.push(command); return true;
   }
@@ -396,3 +413,7 @@ export * from './raster-exchange.js';
 export * from './legacy-raster.js';
 export * from './native-icon.js';
 export * from './native-apng.js';
+
+export * from './png-modes.js';
+
+export * from './indexed-tools.js';

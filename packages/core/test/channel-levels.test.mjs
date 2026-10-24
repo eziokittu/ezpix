@@ -10,7 +10,7 @@ test(`${options.kind} copied settings, exact linked history, metadata and conver
 });
 
 test(`${options.kind} baked native codec byte roundtrips`,async()=>{
- const e=new PixelEditor(createDocument(3,1)),d=e.document;e.paint(0,0,[10,100,200,128]);e.paint(1,0,[7,8,9,0]);e.paint(2,0,[100,200,50,1]);e.commit();e.applyAdjustment(prepareAdjustment(d,options));const source=rasterCel(d,d.layers[0]);assert.equal(JSON.parse(encodeProject(d)).version,13);for(const back of [(await decodeAseprite(encodeAseprite(d))).document,decodePsd(encodePsd(d).bytes).document,(await decodeOra((await encodeOra(d)).bytes)).document]){assert.deepEqual(rasterCel(back,back.layers[0]),source);assert.deepEqual(composite(back),composite(d));}
+ const e=new PixelEditor(createDocument(3,1)),d=e.document;e.paint(0,0,[10,100,200,128]);e.paint(1,0,[7,8,9,0]);e.paint(2,0,[100,200,50,1]);e.commit();e.applyAdjustment(prepareAdjustment(d,options));const source=rasterCel(d,d.layers[0]);assert.equal(JSON.parse(encodeProject(d)).version,16);for(const back of [(await decodeAseprite(encodeAseprite(d))).document,decodePsd(encodePsd(d).bytes).document,(await decodeOra((await encodeOra(d)).bytes)).document]){assert.deepEqual(rasterCel(back,back.layers[0]),source);assert.deepEqual(composite(back),composite(d));}
 });
 
 }

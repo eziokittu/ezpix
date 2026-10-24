@@ -1,0 +1,33 @@
+import {chromium} from 'playwright';
+import {spawn} from 'node:child_process';
+import {readFile,writeFile,mkdir} from 'node:fs/promises';
+import {resolve} from 'node:path';
+import assert from 'node:assert/strict';
+import {ENGINE_VERSION,PixelEditor,decodeProject,encodeProject,captureSelection,prepareCanvasGeometry,prepareAuthored,indexedSelectionData,encodeIndexedCel,createIndexedDocument,captureIndexedCel} from '../packages/core/dist/index.js';
+const out=resolve('artifacts/phase13guhd-ui'),web=resolve('../glitchbong'),base='http://localhost:3795';await mkdir(out,{recursive:true});
+const fixture=await readFile('artifacts/phase13guhd-independent/fixture.ezpix','utf8');let checks=0;const downloads=[];
+const server=spawn(process.execPath,[resolve(web,'node_modules/next/dist/bin/next'),'start','-p','3795'],{cwd:web,windowsHide:true,stdio:'ignore'});let browser,page;
+try{
+ for(let i=0;i<120;i++){try{if((await fetch(base+'/tools/ezpix')).ok)break;}catch{}await new Promise(r=>setTimeout(r,500));}
+ browser=await chromium.launch({channel:'chrome',headless:true});page=await browser.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('dialog',d=>d.accept());
+ const b=name=>page.getByRole('button',{name,exact:true}),l=name=>page.getByLabel(name,{exact:true}),canvas=page.locator('canvas.ez-canvas'),region=()=>page.getByRole('region',{name:'Selection preview',exact:true});
+ await page.goto(base+'/tools/ezpix');await b('Use default canvas').click();
+ const load=async()=>{await page.locator('input[accept=".ezpix,application/json"]').setInputFiles({name:'fixture.ezpix',mimeType:'application/json',buffer:Buffer.from(fixture)});await page.locator('.ez-statusbar [data-tip="Project opened"]').waitFor();return new PixelEditor(decodeProject(fixture));};
+ const save=async name=>{const event=page.waitForEvent('download');await b('Download project').click();await(await event).saveAs(resolve(out,name));await b('Dismiss save notification').click();return readFile(resolve(out,name),'utf8');};
+ const menu=async(section,name)=>{if(await b('Application menu').isVisible())await b('Application menu').click();await page.locator('.ez-menus summary').filter({hasText:new RegExp('^'+section+'$')}).click();await page.locator('.ez-menus').getByRole('button',{name,exact:true}).click();};
+ const command=async name=>{await b('Command search').click();await l('Find command').fill(name);await page.getByLabel('Command results').getByRole('button').click();};
+ const select=async()=>{await b('Select').click();await canvas.scrollIntoViewIfNeeded();const box=await canvas.boundingBox(),w=Number(await canvas.getAttribute('width')),h=Number(await canvas.getAttribute('height'));const xy=(x,y)=>[box.x+(x+.5)*box.width/w,box.y+(y+.5)*box.height/h];await page.mouse.move(...xy(0,0));await page.mouse.down();await page.mouse.move(...xy(2,1));await page.mouse.up();await page.locator('.ez-preview-actions>details>summary').click();await region().waitFor();};
+ const history=async(e,name,operation)=>{const after=encodeProject(e.document);assert.equal(await save(name+'.ezpix'),after,name);downloads.push({name:name+'.ezpix',operation});await b('Undo').click();assert.equal(await save(name+'-undo.ezpix'),fixture);await b('Redo').click();assert.equal(await save(name+'-redo.ezpix'),after);checks++;};
+
+ await page.setViewportSize({width:320,height:640});let e=await load();await b('Select').click();await canvas.focus();
+ for(const key of ['Space','ArrowRight','ArrowRight','ArrowDown','Space','ArrowRight','Enter'])await page.keyboard.press(key);
+ e.applySelection(captureSelection(e.document,{x:0,y:0,width:3,height:2}),{x:1,y:0,copy:false,flipX:false,flipY:false});await history(e,'keyboard',{kind:'selection'});
+ e=await load();await b('Select').click();await canvas.focus();for(const key of ['Space','ArrowRight','Space','Escape'])await page.keyboard.press(key);assert.equal(await save('escape.ezpix'),fixture);assert.ok(await b('Undo').isDisabled());checks++;
+ await select();await l('Destination X').fill('3');const download=page.waitForEvent('download');await b('Download project').click();await page.getByRole('dialog',{name:'Finish your preview',exact:true}).waitFor();await b('Discard preview & continue').click();await(await download).saveAs(resolve(out,'pending-discard.ezpix'));await b('Dismiss save notification').click();assert.equal(await readFile(resolve(out,'pending-discard.ezpix'),'utf8'),fixture);checks++;
+ await menu('Image','Rotate sprite');await b('Prepare canvas change').click();await b('Close Rotate sprite').click();assert.equal(await save('geometry-cancel.ezpix'),fixture);assert.ok(await b('Undo').isDisabled());checks++;
+ await command('Open indexed PNG');await l('Indexed PNG document').setInputFiles({name:'bad.png',mimeType:'image/png',buffer:Buffer.from([137,0,0,0])});await page.getByRole('dialog',{name:'Open indexed PNG',exact:true}).getByRole('status').filter({hasText:/PNG/}).waitFor();assert.equal(await b('Open indexed PNG in new tab').count(),0);await b('Close Open indexed PNG').click();assert.equal(await save('bad-png.ezpix'),fixture);checks++;
+ await command('Open indexed PNG');await l('Indexed PNG document').setInputFiles('artifacts/phase13guhd-independent/fixture.png');assert.ok(await b('Open indexed PNG in new tab').isDisabled());await b('Close Open indexed PNG').click();assert.equal(await page.locator('.ez-document-tabs [role="tab"]').count(),1);assert.equal(await save('png-cancel.ezpix'),fixture);checks++;
+ const bad=JSON.parse(await readFile('artifacts/phase13guhd-independent/selection.ezindexed','utf8'));bad.palette[0][0]=254;
+ await menu('Select','Paste indexed selection');await l('Indexed paste file').setInputFiles({name:'different.ezindexed',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(bad))});await b('Prepare indexed selection paste').click();await page.getByText('Indexed paste requires the identical ordered slot table.',{exact:true}).waitFor();assert.equal(await b('Apply indexed selection paste').count(),0);await b('Close Paste indexed selection').click();assert.equal(await save('bad-paste.ezpix'),fixture);checks++;
+ assert.deepEqual(errors,[]);await writeFile(resolve(out,'extra-result.json'),JSON.stringify({status:'passed',version:ENGINE_VERSION,buildId:(await readFile(resolve(web,'.next/BUILD_ID'),'utf8')).trim(),completedAt:new Date().toISOString(),browser:browser.version(),width:320,checks},null,2));console.log('PASS indexed workspace guards',checks);
+}catch(e){if(page){await page.screenshot({path:resolve(out,'extra-failure.png'),fullPage:true}).catch(()=>{});await writeFile(resolve(out,'extra-failure.txt'),await page.locator('body').innerText()).catch(()=>{});}throw e;}finally{await browser?.close();server.kill();}

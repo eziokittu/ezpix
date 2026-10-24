@@ -12,7 +12,7 @@ test('clear cel, no-op erase, duplication, tags/groups and structural redo prese
  e.toggleLayerLock();assert.throws(()=>e.clearCel(),/unlock/);
 });
 test('v8 empty metadata is unambiguous and old zero buffers compact without losing transparent RGB',()=>{
- const d=createDocument(2,1),data=JSON.parse(encodeProject(d));assert.equal(data.version,13);assert.deepEqual(data.layers[0].cels,[{frameId:'frame-1',empty:true}]);
+ const d=createDocument(2,1),data=JSON.parse(encodeProject(d));assert.equal(data.version,16);assert.deepEqual(data.layers[0].cels,[{frameId:'frame-1',empty:true}]);
  for(const cel of [{frameId:'frame-1',empty:false},{frameId:'frame-1',empty:true,rgba:'AAAAAAAAAAA='},{frameId:'frame-1',empty:true,link:'frame-1'},{frameId:'frame-1'},{frameId:'missing',empty:true}]){const bad=structuredClone(data);bad.layers[0].cels=[cel];assert.throws(()=>decodeProject(JSON.stringify(bad)));}
  for(const version of [4,5,6,7]){const old=structuredClone(data);old.version=version;old.layers[0].cels=[{frameId:'frame-1',rgba:'AAAAAAAAAAA='}];const imported=decodeProject(JSON.stringify(old));assert.equal(celAllocation(imported).bytes,0);old.layers[0].cels[0].rgba=Buffer.from([7,8,9,0,0,0,0,0]).toString('base64');const hidden=decodeProject(JSON.stringify(old));assert.equal(celAllocation(hidden).bytes,8);assert.deepEqual([...rasterCel(hidden,hidden.layers[0])],[7,8,9,0,0,0,0,0]);}
  assert.equal(encodeProject(decodeProject(JSON.stringify(data))),JSON.stringify(data));

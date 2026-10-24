@@ -1,3 +1,4 @@
+import {prepareIndexedGeometry} from './indexed-geometry.js';
 import {checkCelBudget,composite,encodeProject,makeLayer,type PixelDocument,type Layer} from './document.js';
 import {permuteRaster,rotatedSize,type QuarterTurn} from './raster-transform.js';
 
@@ -20,10 +21,11 @@ function anchor(value:CanvasAnchor,delta:number){if(!['start','center','end'].in
 /** Includes nonzero hidden RGB, hidden/locked layers and every frame, ignoring references/source. */
 export function storedArtworkBounds(doc:PixelDocument):{x:number;y:number;width:number;height:number}|null {
  let left=doc.width,top=doc.height,right=-1,bottom=-1;
+ if(doc.indexed){for(const c of Object.values(doc.indexed.cels))for(const p of new Set(Object.values(c)))for(let i=0;i<p.length;i++)if(p[i]!==doc.indexed.transparentIndex){const x=i%doc.width,y=Math.floor(i/doc.width);left=Math.min(left,x);right=Math.max(right,x);top=Math.min(top,y);bottom=Math.max(bottom,y);}return right<0?null:{x:left,y:top,width:right-left+1,height:bottom-top+1};}
  for(const layer of doc.layers){const seen=new Set<Uint8ClampedArray>();for(const frame of doc.frames){const p=layer.cels[frame.id];if(seen.has(p))continue;seen.add(p);for(let i=0;i<p.length;i+=4)if(p[i]||p[i+1]||p[i+2]||p[i+3]){const x=i/4%doc.width,y=Math.floor(i/4/doc.width);left=Math.min(left,x);right=Math.max(right,x);top=Math.min(top,y);bottom=Math.max(bottom,y);}}}
  return right<0?null:{x:left,y:top,width:right-left+1,height:bottom-top+1};
 }
-function geometry(doc:PixelDocument,options:CanvasGeometryOptions){
+export function resolveCanvasGeometry(doc:PixelDocument,options:CanvasGeometryOptions){
  if(options?.kind==='rotate'){
   if(![90,180,270].includes(options.rotation))throw new Error('Choose 90, 180 or 270 degrees.');
   return {...rotatedSize(doc.width,doc.height,options.rotation),x:0,y:0,options:Object.freeze({kind:'rotate',rotation:options.rotation} as const)};
@@ -61,8 +63,9 @@ function transform(pixels:Uint8ClampedArray,oldWidth:number,oldHeight:number,g:{
  return output;
 }
 export function prepareCanvasGeometry(doc:PixelDocument,options:CanvasGeometryOptions,historyBudget=8*1024*1024):CanvasGeometryPlan {
+ if(doc.indexed)return prepareIndexedGeometry(doc,options,historyBudget);
  if(doc.layers.some(l=>l.text||l.adjustment))throw new Error('Rasterize text and flatten adjustment layers before whole-canvas geometry.');if(doc.slices?.length)throw new Error('Clear sprite slices before changing canvas geometry; existing coordinates are preserved until then.');
- const g=geometry(doc,options);checkCelBudget(g.width,g.height,doc.layers.length,doc.frames.length);
+ const g=resolveCanvasGeometry(doc,options);checkCelBudget(g.width,g.height,doc.layers.length,doc.frames.length);
  const changed=g.options.kind==='rotate'||g.options.kind==='flip'||g.width!==doc.width||g.height!==doc.height||g.x!==0||g.y!==0;
  let beforeBytes=0,afterBytes=0,clippedPixels=0;
  for(const layer of doc.layers){const seen=new Set<Uint8ClampedArray>();for(const frame of doc.frames){const p=layer.cels[frame.id];if(seen.has(p))continue;seen.add(p);beforeBytes+=p.byteLength;if(p.length)afterBytes+=g.width*g.height*4;

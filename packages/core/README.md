@@ -1,4 +1,4 @@
-# @ezpix/core 0.190.0
+# @ezpix/core 0.252.0
 
 Original deterministic RGBA editor and image conversion engine. No runtime
 dependencies or inference. Build with the workspace `npm run build`.
@@ -26,10 +26,10 @@ The main entry exports document/history/codec and pure conversion functions.
 and shared controls; `/worker` processes conversion jobs; `/transfer` validates
 the local Chrome handoff. Pure conversion does not access the DOM or network.
 
-Up to 16 layers, up to 32 frames within a 4 MiB cel-pixel budget, 1–256 pixels per axis. Project v11 is bounded plain JSON, at most
+Up to 16 layers, up to 32 frames within a 4 MiB cel-pixel budget, 1–256 pixels per axis. Project v16 is bounded plain JSON, at most
 24 MiB, with optional original RGBA source and a versioned conversion recipe.
 The entire source is included, even outside the crop, unless explicitly omitted.
-v1/v2/v3/v4/v5/v6/v7/v8/v9/v10 remain readable; unknown versions and malformed/bounded data are rejected.
+v1/v2/v3/v4/v5/v6/v7/v8/v9/v10/v11/v12/v13/v14/v15/v16 remain readable; unknown versions and malformed/bounded data are rejected.
 Projects store ordered frames with 20-5000 ms durations and explicit empty, independent or linked RGBA cels
 per layer/frame, selected frame/layer, visibility and names. Legacy v1-v3 files
 migrate into one frame. Frame operations validate the dense cel budget before
@@ -1259,3 +1259,341 @@ sequentially on port 3791. `phase13ezfd-report.mjs` aggregates current package,
 final build and fresh browser/integration results. Human external-app/OS cursor,
 physical devices, browser diversity, endurance/performance and release gates
 remain separate. See current handoff for exact recorded verification.
+
+
+## Phases 203-205 / 13fe-13fg: document output and exact PNG exchange
+
+Core/companion 0.193.0, project writer v14/readers v1-v14. This finishes the
+requested eight-phase span 198-205 from handoff 197; phases 198-202 already lived
+in the committed baseline and were preserved. Only 203-205 are new in this batch.
+
+`PixelDocument.outputMode` is absent for RGBA, `grayscale` or `palette`. It is a
+persistent **composite-output transform**, applied once after visible layers,
+groups, adjustments/effects and normal byte quantization. Source RGBA cels,
+text/effect colours, links, hidden pixels, references and palette metadata remain
+editable and unchanged. It is not grayscale/indexed storage editing, profile
+management or inferred native colour mode. Raw-cel operations/previews use source
+colours. Palette edits can change palette-output appearance without rewriting
+source cels. References/tracing retain their original colours.
+
+Grayscale uses `floor((299*r+587*g+114*b+500)/1000)` on encoded RGB bytes. Palette
+output minimizes squared encoded RGB distance to project swatches, first slot
+wins ties; duplicate swatches remain distinct palette slots. Both preserve alpha;
+transparent composite pixels remain transparent black. `prepareDocumentOutput`
+copies its source and hides mode intent in a WeakMap; Apply regenerates, rejects
+stale/fake plans, preflights the 512-byte history command and makes one Undoable
+mode change. Same-mode requests preserve redo. Painting/structural/palette history
+remain separate commands and retain mode through their own undo/redo.
+
+v14 validates output metadata before cel/reference allocation. v1-v13 readers
+ignore the new field and migrate to RGBA output. Saving/recovery/handoff retains
+v14 metadata. Layered Aseprite/Piskel and selected-frame layered PSD/ORA reject
+unsupported output loss. Explicit PSD/ORA frames-as-flattened-layers bakes each
+frame and removes the mode, with warnings. PNG/APNG/GIF/assets/clips use normal
+visible compositing, so they bake the output transform. Raw-cel exports remain
+source workflows; keep a complete EzPix project as the editable backup.
+
+`encodeModePng` writes non-interlaced 8-bit grayscale+alpha (type 4), requiring
+already-gray pixels, or exact indexed PNG (type 3) with first-appearance RGBA
+entries, PLTE and tRNS. Identical RGB at different alpha uses distinct entries.
+More than 256 RGBA entries rejects rather than quantizing alpha or colours.
+Maximum export one megapixel/8 MiB encoded. Asset formats `gray-png` and
+`indexed-png` integrate with reviewed Prepare/Download, portable presets and batch
+ZIPs. `decodePngProject` imports bounded static 8-bit gray/gray-alpha/indexed/RGB/
+RGBA PNG into RGBA, or delegates APNG to its animation decoder. Static imports
+are 16 MiB/256px per axis with exact streaming decompression/CRC checks. Custom
+profiles, interlacing, 16-bit and sub-byte samples remain unsupported. PNG indices
+and inferred output mode are not retained as indexed storage. Shared PNG decode
+now supports grayscale types 0/4 and optional grayscale tRNS, preserving bytes.
+
+The editor exposes Image / Document output and command search. Prepare/Apply/
+Discard requires explicit retained-source review. The shared converter/companion
+adds reviewed output choice (palette means default project swatches), exact gray/
+indexed PNG exports and v14 project/handoff preservation. Its existing ordinary
+PNG/JPEG source path remains the browser decoder; exact PNG import belongs to
+editor native exchange. No new runtime dependency, permission, telemetry or AI.
+
+Reproduce `phase13fefg-independent.mjs`, `phase13fefg-ui.mjs`, then real companion
+`phase23-e2e.mjs` with `EZPIX_QA_OUTPUT=1` and `EZPIX_QA_PHASE8D=1` after builds.
+Aggregate: `phase13fefg-report.mjs`. Physical/device/browser diversity, human native
+app/engine roundtrips, endurance/performance, licence/name and hosted/store gates
+remain open, along with an exhaustive Aseprite feature audit.
+
+
+## Source conversion and document workspace (206-215 / 13fh-13fq)
+
+Project writer remains v14/readers v1-v14. Matching core/companion version 0.210.0.
+`prepareAuthored({kind:'source-grayscale'})` converts every distinct raw cel once,
+including hidden RGB/layers, editable text colours and project palette slots using
+integer (299R+587G+114B+500)/1000 floored. Alpha, linked identity, masks, live stacks,
+groups, timing/tags and palette slot/group/lock identity remain. Changed locked
+layers/ancestors or palette slots reject before mutation. References and retained
+conversion images remain original. Output mode resets to RGBA. This is a lossy
+explicit conversion with one Undo, not a persistent grayscale storage/painting
+mode. Future paint can introduce colour. No-op preserves Redo.
+
+The website retains up to four PixelEditor instances, independent artwork/history
+and tab labels/zoom. Tool settings are shared. Switches resolve pending previews;
+opening an ordinary file still replaces only the active tab. Workspace commands
+add blank/copy/file tabs, rename session labels, and explicitly close tabs/history.
+Independent session histories are never serialized. Each editor retains the
+existing 8 MiB/100-command history cap; four tabs are not a measured peak-memory
+guarantee. Individual project/cel budgets still apply.
+
+`prepareAuthored({kind:'document-transfer',project,destination})` takes a copied
+source project and stages one target Undo. Raw layer transfer requires matching
+canvas and frame count, RGBA source/target output, and an ungrouped non-adjustment
+source leaf. It preserves within-layer cel links, copies buffers/masks/text/effects,
+and does not modify source artwork. Group context cannot silently rebind. Frame
+transfer appends source composites with source timing into a new root layer; old
+frames remain unchanged and existing raw layers get sparse empty appended slots.
+Existing global text/adjustment metadata still applies in appended frames. Source
+layers/groups/links are baked; source tags/references/palette/source metadata are
+not imported. Palette transfer appends only missing RGB values while retaining
+existing indices and locks; reference transfer stores the active source composite
+as display-only pixels. Capacity/geometry/history failures reject before mutation.
+
+Workspace JSON v1 (`ezpix-workspace`) has activeId and 1-4 distinct document-N
+entries with label and full project text. Input/output is capped at 8 MiB UTF-8,
+projects are validated before restoration, and retained sources are optional. ZIP
+v1 starts with stored mimetype application/x-ezpix-workspace, has a strict
+workspace.json manifest and numeric documents/document-N.ezpix paths, with the
+existing 40-entry/8 MiB expansion/16 MiB encoded archive bounds. Extra/missing/path
+substitutions, CRC and invalid projects reject. Imports are reviewed all-tab
+replacement, not artwork Undo. New histories start empty. Oversized sessions can
+still use individual project downloads; workspace/checkpoint limits do not expand.
+
+A separate all-document IndexedDB checkpoint uses navigator.locks and the existing
+atomic write/pending-restore protocol. Restore/keep are explicit, failure retains
+the previous checkpoint, and a competing browser tab cannot overwrite it. Source
+inclusion follows the editor preference. The prior active-document checkpoint is
+separate. Storage/reload automation is not OS-close, physical-device or durable
+backup evidence.
+
+Document library JSON v1 stores four uniquely named projects, at most 2 MiB total,
+without retained conversion images or history. Device edits/imports remain drafts
+until Save library; JSON is portable. Opening creates a new tab. Full authored
+metadata/references remain. Storage errors preserve the open artwork and draft.
+
+`exportWorkspaceAssets` bakes selected 1-4 document composites using one validated
+asset setting set into numeric document folders and workspace-assets.json. Existing
+format/image/frame budgets plus a total 40 ZIP entries/8 MiB content apply. Sources
+are fingerprinted across async work. The website exports copied snapshots and
+checks live workspace identity again before enabling/requesting a download. No
+references/conversion sources/history enter asset images; normal asset losses and
+per-document metadata apply. This is engine-neutral, not a native engine importer.
+
+Project v14 palette validation now preserves equal-RGB slots on save/reopen.
+Source grayscale can create such collisions; groups/locks keep their numeric
+identity. Authored palette edits and cross-document append preserve those slots.
+RGB-only palette exchange retains its existing colour-bank normalization.
+
+## Grayscale editing policy (216-222)
+
+Core/companion 0.210.0 writes project v15 and reads v1-v15. Optional
+`editingMode: "grayscale"` constrains source RGB equality while storage remains
+RGBA. `prepareAuthored({kind:"editing-policy", mode:"grayscale"|"rgba"})`
+uses private staged plans, lock/budget checks and one authored history command.
+Entry converts raw cels (including hidden RGB), text and palette; duplicate slots,
+alpha and per-layer cel links survive. Exit removes the constraint without
+recovering original colour. Undo restores source and policy together.
+
+Direct inks, advanced drawing, selection fill/stroke and project paste, palette
+and bitmap text, copied document layer/frame/palette transfers and companion
+layer imports map through integer encoded-byte gray. References and original
+conversion images remain colour. Effects/composites render gray. Unsupported
+colour-producing adjustments, coverage/studio actions or clip append reject at
+the history boundary and restore prior state without clearing Redo. This is a
+bounded constrained editing policy, not gray-channel/indexed storage or profile
+conversion. Direct external mutation of public document buffers is unsupported;
+project encoding/decoding rejects invalid constrained state.
+
+Project, recovery, workspace JSON/ZIP and library persistence retain the policy;
+ordinary replacement imports open their own mode. Aseprite/Piskel and selected
+layer PSD/ORA exports refuse policy loss; flattened PSD/ORA/image output bakes
+visible pixels and warns that editing policy is omitted. No extension permission
+or protocol change. See current handoff for local evidence and unperformed gates.
+
+Grayscale ramp/harmony previews and commits use gray slots and preserve existing
+equal-gray slots. RGB-bank sorting/pruning refuses ambiguous duplicate slots in
+constrained mode; use authored slot tools to preserve identity.
+
+## Indexed cel contract and exchange (223-224)
+
+Core/companion 0.212.0 retains project writer/readers v15/v1-v15. The separate
+`ezpix-indexed-cel` v1 envelope holds width/height (1-256), 1-256 ordered RGBA
+slots, a canonical base64 Uint8 index plane and `transparentIndex` (null or one
+slot). Exactly the designated slot has alpha zero; all other slots have alpha
+1-255. Duplicate opaque/partial-alpha and unused slots are legal and retained.
+No reserved index is implied when transparency is absent. Encoded files cap at
+128 KiB; strict schema, byte count and palette-index validation run before use.
+
+`reorderIndexedSlots` accepts a complete permutation and remaps pixels and the
+transparent slot together, preserving RGBA including hidden RGB. Replacing a
+slot intentionally recolours only its references; transparent-slot alpha rules
+remain enforced. No project palette edit implicitly mutates indexed slot data.
+`encodeIndexedCelPng` writes the original PLTE/tRNS table and 8-bit index plane,
+including duplicate/unused slots; it does not regenerate or deduplicate a table.
+
+Image / Indexed cel exchange (also Commands) prepares the active visible frame
+in first-appearance exact RGBA order for JSON/PNG downloads. It bakes layers and
+effects; transparent composite RGB is normalized by existing compositing. More
+than 256 unique RGBA values rejects without quantization. Low-level exact raw
+indexing refuses multiple distinct zero-alpha RGB values rather than silently
+losing them; use a normalized composite or retain RGBA source.
+
+Indexed file import requires matching canvas dimensions and a visible/unlocked
+raster target/ancestor. Private copied authored plans import a new layer in the
+active frame or replace all linked members of the active cel, with one Undo.
+Imported indices expand to RGBA; project palette/structure/metadata stay intact.
+Grayscale editing maps the imported RGBA to gray. Equality is a no-op preserving
+Redo. Stale/forged plans, malformed files, locks and budget failures reject.
+Project v15 needs no schema bump because live documents remain RGBA.
+
+This establishes bounded indexed representation/exchange, not persistent indexed
+document storage/editing, PNG indexed-table import, indexed native parity or
+ICC conversion. Workspace and native formats retain the expanded RGBA artwork;
+keep the original .ezindexed to retain index identity. Companion capture uses
+the same core/version with unchanged protocol, permissions and Chrome minimum.
+
+## Persistent indexed storage and Indexed studio (225-234)
+
+Core/companion 0.232.0 writes project v16 and reads v1-v16. Optional root
+`indexed:{palette,transparentIndex}` selects a shared ordered RGBA slot table.
+Indexed raster cels serialize canonical base64 one-byte `indices`, `empty`
+(designated transparent slot) or backward `link`, never an RGBA payload. Plain
+Normal raster layers only: no text, masks, live effects, adjustment layers,
+grayscale editing policy or final output mapping. Entry indexes all raw source
+cels exactly, including hidden layers/RGB, and rejects >256 RGBA entries or
+multiple distinct zero-alpha RGB values. References/conversion sources remain
+original. Exit retains expanded source pixels and restores unrestricted RGBA.
+
+Live RGBA cels are validated compositing caches for the index planes. Links in
+both representations must agree. Plane data is copied on write; project encoding
+and the editor history boundary reject mismatch/unsupported operations and
+restore prior artwork without clearing Redo. Existing dense 4 MiB RGBA cel cap
+remains; index planes add up to 1 MiB and history counts retained plane buffers.
+These allocation bounds do not establish peak process RAM or minimum hardware.
+
+Image / Indexed studio and Commands provide reviewed staged entry/exit, slot
+append/replacement/permutation, 4096-anchor connected indexed pencil, index-aware
+flood/rectangles, rectangular selection copy/paste, cel link/unlink/clear, blank/
+duplicate layers and blank/duplicate/delete/timed frames. Slots may duplicate;
+recolour changes only pixels referencing that slot. Reorder remaps all planes and
+transparency, preserving RGBA. Only one slot has alpha zero; changing that role
+is an explicit reviewed palette edit. Palette recolour rejects affected locked
+art; frame deletion rejects locked layers. Copy/paste/import require the exact
+ordered RGBA table and transparency, avoiding implicit remap. Source RGB palette
+swatches remain a separate bank. Standard RGBA painting is disabled in this
+bounded mode; other incompatible pixel/layer/geometry operations reject.
+
+All operations use private copied authored plans, complete stale-source checks,
+Apply/Discard, budget preflight and one Undo. Equal-index/no-op operations retain
+Redo; equal-RGBA changes between duplicate slots are real index-history changes.
+Workspace/checkpoint/library v1 envelopes carry v16 index planes/links and restore
+fresh editor histories. Studio Files exports the active raw indexed cel as JSON/
+PNG preserving unused/duplicate slots; the older exchange exports a new indexed
+visible-composite table. Matching indexed file import preserves planes in indexed
+mode, while ordinary RGBA import expands them. Native Aseprite/Piskel/selected
+layer PSD/ORA refuse index loss; flattened/native/assets/clips bake visible RGBA
+and warn. Keep projects for structure and raw .ezindexed for slot exchange.
+
+This is bounded persistent indexed storage/editing in Indexed studio, not complete
+main-canvas indexed tool integration or native indexed/profile parity. Actual
+indexed PNG/native table import, broader tools/geometry/live layers, true gray
+channel storage and profiles remain open, alongside existing manual/release gates.
+
+
+## Indexed canvas tools (phases 235-244)
+
+`IndexedToolOperation` participates in private `prepareAuthored` plans with
+source revalidation, explicit Apply/Cancel, no-op/Redo preservation and atomic
+Undo. `defaultIndexedBrush` supplies slot-addressed replacement, ordered 4x4
+Bayer two-slot dither and original-index shade steps. Connected strokes use
+1-4096 in-canvas integer anchors, at most 65536 connected samples and 8M
+footprint visits, 1-32 square/circle tips, mirrors, edge wrapping, spacing,
+optional stabilizer and pixel-perfect cleanup. Each covered pixel is changed
+once per gesture. Alpha lock skips transparent pixels and any replacement whose
+palette alpha differs; it does not synthesize colours. Erase requires the single
+designated transparent slot. There is no pressure/opacity blending, spray,
+custom stamp or blur/sharpen claim for indexed tools.
+
+Flood uses exact slot identity and a bounded one-enqueue-per-pixel queue.
+Line/Rectangle/Ellipse use deterministic integer shapes with outline/fill.
+Whole active-cel flip, 180-degree rotation, square-only quarter turns and
+wrapped/nonwrapped offset preserve index identity and linked members. Clipped
+offset explicitly uses transparency. These are cel operations, not canvas
+resize/crop or selection-transform parity.
+
+`indexedSlotUsage` counts references in unique planes across hidden and visible
+layers/frames. Remove accepts only an unused slot; prune retains every used slot
+and unused designated transparency. Duplicate used slots never merge. Planes,
+links and transparency are remapped together, retaining expanded RGBA.
+
+`decodeIndexedCelPng` reads a strict 128 KiB, 1-256 per-axis, non-interlaced 8-bit
+indexed PNG subset, preserving original PLTE order/duplicates/unused entries,
+tRNS (default alpha 255), hidden RGB and index bytes. It validates chunk order,
+CRC, row filters 0-4, exact bounded inflate, index bounds and the single-zero-alpha
+storage invariant. Packed/animated/custom-profiled PNG and multi-transparent
+tables reject. Existing ordinary PNG import still expands to RGBA. Raw indexed
+studio PNG import needs an identical ordered document table, dimensions and
+transparent role; no implicit remap or new-document indexed PNG import is claimed.
+Project writer/readers remain v16/v1-v16; runtime permission/protocol unchanged.
+
+
+## Indexed selection and geometry (245-254)
+
+`captureSelection` attaches a private indexed snapshot token for indexed documents.
+Main-canvas rectangular move/copy, quarter turns, output-axis flips and pixel-center
+nearest-neighbour scale retain exact index identity and linked members. Tokens
+survive selection-object copies; full-document source identity is rechecked before
+Apply. Invalid/forged/masked snapshots reject. No-op preserves Redo. A move that
+exposes source holes requires a transparent slot; an opaque in-place transform or
+copy can succeed. Destinations must fit wholly; no implicit remap or clipping.
+`indexedSelectionData` exports the original rectangle with its complete ordered
+slot table, including unused/duplicate slots. `prepareIndexedSelectionClear`
+stages the original rectangle's transparent cut as one authored command.
+
+`prepareCanvasGeometry`/`applyCanvasGeometry` support indexed resize, crop, trim,
+nearest scale, quarter turns and flips across every layer/frame, including hidden
+and locked artwork, retaining links and independent cel identity. Padding requires
+a transparent slot. Trim ignores only that index, even when it holds hidden RGB;
+its palette entry remains. Entirely transparent documents retain their dimensions.
+Slices must be cleared first. References/placements and original conversion source
+stay unchanged; recipe dimensions follow the canvas. Private plans reject stale or
+forged Apply; dimension, cel-allocation and undo budgets precede mutation. Indexed
+geometry history uses authored state including dimensions and conversion recipe.
+
+`createIndexedDocument` and `decodeIndexedPngDocument` construct a new independent
+v16 indexed document from a validated raw cel or strict 8-bit indexed PNG, retaining
+PLTE/tRNS/indices and unused/duplicate entries. Fresh histories are empty. Existing
+PNG limits apply; no packed/profile/animation support was added. The website opens
+a reviewed new tab, with explicit four-document cap and no silent replacement.
+Main-canvas indexed masks, arbitrary RGBA effects and wider native fidelity remain
+open. Project writer/readers stay v16/v1-v16; no permissions or protocol change.
+
+
+## Indexed selection masks (255-264)
+
+Version 0.252.0 retains project v16 and indexed/workspace/library envelopes v1.
+Transient binary masks are now valid on private indexed selection snapshots.
+`advancedSelectionMask` dispatches indexed wand/global range to exact original
+slot comparison (tolerance 0, RGBA setting, four/eight neighbours); duplicate
+colours never imply the same slot. Other existing shape/path/brush/boolean/
+morphology/component/session/PNG membership operations apply within bounds.
+
+Masked move clears only source members, then writes transformed members; holes
+leave destination indices unchanged. Indices and membership share rotate,
+nearest pixel-center scale and output flip mapping. Opaque moves require every
+cleared member to be covered by transformed destination membership. Copy needs
+no transparent slot. Empty masks are no-ops and preserve Redo.
+
+`indexedSelectionData` retains original bounds/full table and encodes holes with
+the existing transparent slot; opaque files with holes reject. Paste replaces
+the full rectangle, including transparent holes. `prepareIndexedSelectionClear`
+clears members only. `prepareIndexedSelectionPaint` fills members with an exact
+slot or strokes an inner Manhattan band (thickness 1-256, including holes).
+Plans privately copy masks, recheck full source/editability/budgets at Apply,
+and update linked cels atomically. Membership edits are transient; artwork
+history and v16 project persistence retain resulting slot planes. No indexed
+RGBA colour effects, native Aseprite fidelity or persistent layer masks implied.

@@ -6,7 +6,7 @@ const apply=(e,o)=>e.applyLayerWorkflow(prepareLayerWorkflow(e.document,o,e.hist
 const mask=(e,values)=>({kind:'mask',layerId:e.document.activeLayerId,source:'coverage',coverage:{width:e.document.width,height:e.document.height,values:Uint8Array.from(values)}});
 const atomic=(e,fn)=>{const before=encodeProject(e.document);assert.equal(fn(),true);const after=encodeProject(e.document);assert.notEqual(after,before);e.undo();assert.equal(encodeProject(e.document),before);e.redo();assert.equal(encodeProject(e.document),after);return after;};
 test('persistent mask v12 roundtrip, legacy migration and hidden RGBA preservation',()=>{
- const e=fixture(),raw=e.document.layers[0].pixels.slice();atomic(e,()=>apply(e,mask(e,[0,128,255,255,64,0])));const doc=e.document,data=JSON.parse(encodeProject(doc));assert.equal(data.version,13);assert.equal(encodeProject(decodeProject(JSON.stringify(data))),JSON.stringify(data));assert.deepEqual(doc.layers[0].pixels,raw);assert.equal(doc.layers[0].cels['frame-1'],doc.layers[0].cels['frame-2']);
+ const e=fixture(),raw=e.document.layers[0].pixels.slice();atomic(e,()=>apply(e,mask(e,[0,128,255,255,64,0])));const doc=e.document,data=JSON.parse(encodeProject(doc));assert.equal(data.version,16);assert.equal(encodeProject(decodeProject(JSON.stringify(data))),JSON.stringify(data));assert.deepEqual(doc.layers[0].pixels,raw);assert.equal(doc.layers[0].cels['frame-1'],doc.layers[0].cels['frame-2']);
  assert.deepEqual([...composite(doc)].filter((_,i)=>i%4===3),[0,64,0,255,32,0]);
  for(const version of [10,11]){const old=structuredClone(data);old.version=version;const migrated=decodeProject(JSON.stringify(old));assert.equal(migrated.layers[0].mask,undefined);assert.equal(migrated.layers[0].effects,undefined);}
 });

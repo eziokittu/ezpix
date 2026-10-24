@@ -1,0 +1,10 @@
+import {readFile,mkdir,writeFile,stat} from 'node:fs/promises';
+import {resolve} from 'node:path';
+import assert from 'node:assert/strict';
+import {ENGINE_VERSION} from '../packages/core/dist/index.js';
+const json=async p=>JSON.parse(await readFile(p,'utf8')),web=resolve('../glitchbong'),buildId=(await readFile(resolve(web,'.next/BUILD_ID'),'utf8')).trim(),built=(await stat(resolve(web,'.next/BUILD_ID'))).mtimeMs;
+const paths={independent:'artifacts/phase13fefg/result.json',ui:'artifacts/phase13fefg-ui/result.json',companion:'artifacts/phase23/output-result.json',integration:'artifacts/phase23/result.json',legacyCompanion:'artifacts/phase23/legacy-result.json',rasterCompanion:'artifacts/phase23/raster-result.json',legacyRegression:'artifacts/phase13ezfd-ui/result.json',rasterRegression:'artifacts/phase13euey-ui/result.json',authoredRegression:'artifacts/phase13eket-ui/result.json',pkg:'artifacts/package/package-result.json'},results={};
+for(const [key,path]of Object.entries(paths)){const r=await json(path);assert.equal(r.status,'passed',key);if(!['integration','authoredRegression'].includes(key))assert.equal(r.version,ENGINE_VERSION,key);if(['ui','legacyRegression','rasterRegression'].includes(key))assert.equal(r.buildId,buildId,key);if(!['independent','pkg'].includes(key))assert.ok((await stat(path)).mtimeMs>built,key+' must follow final build');results[key]=r;}
+assert.equal(results.integration.harness,false);assert.equal(results.integration.fixtureOnlyHostGrant,false);assert.equal(results.integration.toolbarActiveTabGrant,true);assert.equal(results.integration.phase8d,true);
+const summary={status:'passed',version:ENGINE_VERSION,buildId,...results,remainingGates:['true indexed/grayscale storage editing','physical devices/stylus','Firefox/Safari','human external-app/engine use','endurance/true peak memory/minimum hardware','licence/name','hosted/offline/update/store','exhaustive Aseprite parity audit']};
+await mkdir('artifacts/phase13fefg-results',{recursive:true});await writeFile('artifacts/phase13fefg-results/summary.json',JSON.stringify(summary,null,2));console.log('PASS phases 203-205 aggregate');

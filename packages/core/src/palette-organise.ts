@@ -1,3 +1,5 @@
+import {editingPalette} from './editing-policy.js';
+import {validatePaletteSlots} from './document.js';
 import {encodeProject,type PixelDocument} from './document.js';
 import {validatePalette} from './toolkit.js';
 export type HarmonyMode='complementary'|'analogous'|'triadic';
@@ -49,9 +51,10 @@ export function auditDocumentPalette(doc:PixelDocument):DocumentPaletteAudit {
  return {counts,outsidePixels,transparentPixels,uniqueCels,emptyCels,outsideSamples};
 }
 export function preparePaletteOperation(doc:PixelDocument,options:PaletteOperationOptions):PaletteOperationPlan {
- const before=validatePalette(doc.palette);let colors:string[],preview:string[],settings:Readonly<PaletteOperationOptions>;
+ if(doc.editingMode&&options?.kind!=='harmony'&&new Set(doc.palette).size!==doc.palette.length)throw new Error('Use authored palette slot tools to preserve equal-gray slot identity.');
+ const before=doc.editingMode?validatePaletteSlots(doc.palette):validatePalette(doc.palette);let colors:string[],preview:string[],settings:Readonly<PaletteOperationOptions>;
  if(options?.kind==='harmony'){
-  preview=paletteHarmony(options);colors=validatePalette([...new Set([...before,...preview])]);settings=Object.freeze({kind:'harmony',base:options.base.toLowerCase(),mode:options.mode});
+  preview=editingPalette(doc,paletteHarmony(options));colors=doc.editingMode?validatePaletteSlots([...before,...new Set(preview.filter(c=>!before.includes(c)))]):validatePalette([...new Set([...before,...preview])]);settings=Object.freeze({kind:'harmony',base:options.base.toLowerCase(),mode:options.mode});
  }else if(options?.kind==='sort'){
   colors=sortPalette(before,options);preview=colors.slice();settings=Object.freeze({kind:'sort',by:options.by,direction:options.direction});
  }else if(options?.kind==='prune'){

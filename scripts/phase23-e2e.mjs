@@ -36,6 +36,7 @@ try {
   await start('region');await source.locator('#ezpix-capture-overlay').waitFor();
   const app=await capturedPage(async()=>{await source.mouse.move(50,90);await source.mouse.down();await source.mouse.move(150,170,{steps:6});await source.mouse.up();});
   console.log('Region preview ready');
+  if(process.env.EZPIX_QA_OUTPUT==='1'){const {verifyCompanionOutput}=await import('./phase13fefg-companion.mjs');await verifyCompanionOutput(app,context,id,artifacts,base);}
   if(process.env.EZPIX_QA_LEGACY==='1'){const {verifyCompanionLegacy}=await import('./phase13ezfd-companion.mjs');await verifyCompanionLegacy(app,context,id,artifacts);}
   if(process.env.EZPIX_QA_RASTER==='1'){const {verifyCompanionRaster}=await import('./phase13euey-companion.mjs');await verifyCompanionRaster(app,context,id,artifacts);}
   const projectDownload=app.waitForEvent('download');await app.locator('[data-project]').click();const project=await projectDownload;await project.saveAs(resolve(artifacts,'region.ezpix'));
@@ -76,7 +77,7 @@ try {
   assert.equal((await send(website,{op:'ack',protocol:1,token,sha256:metadata.sha256})).status,'imported','ACK retry is idempotent');
   const save=website.waitForEvent('download');await website.getByRole('button',{name:'Download project',exact:true}).click();await(await save).saveAs(resolve(artifacts,'website-import.ezpix'));
   const imported=decodeProject(await readFile(resolve(artifacts,'website-import.ezpix'),'utf8'));assert.equal(imported.conversion.recipe.palette,'neon');assert.deepEqual(imported.conversion.source,region.conversion.source);
-  const png=website.waitForEvent('download');await website.getByRole('button',{name:'Export',exact:true}).click();await website.getByRole('button',{name:'Export PNG',exact:true}).click();await(await png).saveAs(resolve(artifacts,'website-import.png'));
+  await website.getByRole('button',{name:'Dismiss save notification',exact:true}).click();await website.getByRole('button',{name:'Export',exact:true}).click();await website.getByRole('button',{name:'Export PNG',exact:true}).waitFor();const png=website.waitForEvent('download');await website.getByRole('button',{name:'Export PNG',exact:true}).click();await(await png).saveAs(resolve(artifacts,'website-import.png'));
   await website.getByRole('button',{name:'Close Import & export'}).click();
   // Website upload / worker conversion, and source-retaining re-tune.
   await website.getByRole('button',{name:'Use dark theme'}).click();

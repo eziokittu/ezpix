@@ -10,6 +10,7 @@ export function layerExportSnapshot(source:PixelDocument,mode:LayerExportMode){
  warnings.push(...nativeMetadataWarnings(doc));
  if(hasLinkedCels(doc))warnings.push('Linked cels are expanded; shared edit identity is omitted.');
  if(doc.layers.some(l=>l.locked))warnings.push('Layer edit locks are omitted in this native format.');
+ if((doc.indexed||doc.outputMode||doc.editingMode)&&mode==='selected-frame')fail('Document output requires frames as flattened layers, PNG or EzPix.');
  if(doc.groups.length&&mode==='selected-frame')fail('Native layered group export is unsupported. Choose animation frames as flattened layers, PNG or EzPix.');
  if(mode==='selected-frame'&&doc.layers.some(l=>l.text||l.adjustment||l.mask||l.effects?.length))fail('Layer masks/live effects require baking or frames as flattened layers.');
  if(mode==='selected-frame'&&doc.layers.some(l=>l.blendMode!=='normal'))fail('Native layered blend export is unsupported. Choose animation frames as flattened layers, PNG or EzPix.');
@@ -20,7 +21,7 @@ export function layerExportSnapshot(source:PixelDocument,mode:LayerExportMode){
   checkCelBudget(doc.width,doc.height,doc.frames.length,1);warnings.push('Each animation frame becomes one flattened visible layer; original hidden pixels and layer structure are omitted.');
   const frames=doc.frames.map((f,i)=>({name:`Frame ${i+1} (${f.duration} ms)`,pixels:compositeFrame(doc,f.id)}));doc.layers=frames.map((f,i)=>makeLayer(doc,`layer-${i+1}`,f.name,true,{'frame-1':f.pixels}));
  }
- doc.groups=[];doc.tags=[];
+ delete doc.outputMode;delete doc.editingMode;delete doc.indexed;doc.groups=[];doc.tags=[];
  doc.frames=[{id:'frame-1',duration:100}];doc.activeFrameId='frame-1';doc.activeLayerId=doc.layers.at(-1)!.id;return {document:doc,warnings};
 }
 import {composite as compositeFrame} from './document.js';

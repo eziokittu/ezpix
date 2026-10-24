@@ -1,3 +1,4 @@
+import {editingInk} from './editing-policy.js';
 import {activeLayer,rasterCel,linkedFrames,encodeProject,composite,type PixelDocument,type RGBA} from './document.js';
 import {layerEditable} from './groups.js';
 import {brushOffsets,type BrushShape} from './brush.js';
@@ -54,7 +55,7 @@ export function prepareDrawing(doc:PixelDocument,path:readonly DrawingPoint[],op
    if(o.mode==='blur'){let sumA=0;const sum=[0,0,0];for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){const s=sample(px+dx,py+dy);sumA+=s[3];for(let k=0;k<3;k++)sum[k]+=s[k]*s[3];}ink=[dst[0],dst[1],dst[2],Math.floor((sumA+4)/9)];if(sumA)for(let k=0;k<3;k++)ink[k]=Math.floor((sum[k]+Math.floor(sumA/2))/sumA);}
    if(o.mode==='sharpen'){const ns=[sample(px-1,py),sample(px+1,py),sample(px,py-1),sample(px,py+1)];ink=[...dst];for(let k=0;k<3;k++)ink[k]=Math.max(0,Math.min(255,5*dst[k]-ns.reduce((a,c)=>a+c[k],0)));}
    if(o.dynamics?.opacity)ink[3]=Math.floor(ink[3]*factor+.5);
-   const next=[...compositeDrawingPixel(dst,ink,o.blend,o.alphaLock)];if(o.mode==='shade'||o.mode==='sharpen')next[3]=dst[3];if(next.some((v,k)=>v!==dst[k])){pixels.set(next,i);changedPixels++;}
+   const next=[...editingInk(doc,[...compositeDrawingPixel(dst,ink,o.blend,o.alphaLock)])];if(o.mode==='shade'||o.mode==='sharpen')next[3]=dst[3];if(next.some((v,k)=>v!==dst[k])){pixels.set(next,i);changedPixels++;}
   }
  }});
  const linked=linkedFrames(doc,layer).length,historyBytes=3*pixels.byteLength+256+64*linked;if(changedPixels&&(!Number.isFinite(historyBudget)||historyBytes>historyBudget))throw new Error('Drawing exceeds the undo memory budget.');

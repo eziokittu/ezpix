@@ -14,7 +14,7 @@ test('partial alpha, hidden layers and isolated nested group opacity apply once'
  assert.deepEqual([...composite(e.document).slice(0,4)],[80,120,184,255]);e.toggleLayer();assert.deepEqual([...composite(e.document).slice(0,4)],[64,128,192,255]);
 });
 test('v11 exact roundtrip, v1-v10 defaults and hostile blend metadata rejection',()=>{
- const e=fixture();atomic(e,()=>e.setLayerBlendMode('screen'));const data=JSON.parse(encodeProject(e.document));assert.equal(data.version,13);assert.equal(encodeProject(decodeProject(JSON.stringify(data))),JSON.stringify(data));
+ const e=fixture();atomic(e,()=>e.setLayerBlendMode('screen'));const data=JSON.parse(encodeProject(e.document));assert.equal(data.version,16);assert.equal(encodeProject(decodeProject(JSON.stringify(data))),JSON.stringify(data));
  for(const version of [9,10]){const old=structuredClone(data);old.version=version;for(const l of old.layers)delete l.blendMode;assert.ok(decodeProject(JSON.stringify(old)).layers.every(l=>l.blendMode==='normal'));}
  for(const value of [undefined,null,0,'unknown',{},['normal']]){const bad=structuredClone(data);bad.layers[0].blendMode=value;assert.throws(()=>decodeProject(JSON.stringify(bad)),/blend/);}
  const before=encodeProject(e.document);assert.throws(()=>e.setLayerBlendMode('unknown'));assert.equal(encodeProject(e.document),before);assert.equal(e.setLayerBlendMode('screen'),false);
