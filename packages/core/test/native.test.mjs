@@ -15,9 +15,9 @@ test('Aseprite compressed offset cel has independent golden placement and bounde
 });
 test('Aseprite rejects lossy rendering features and hostile framing before decode',async()=>{
  const base=encodeAseprite(fixture()),layer=chunks(base).find(c=>c.type===0x2004),cel=chunks(base).find(c=>c.type===0x2005);
- for(const fn of [v=>v.setUint16(12,8,true),v=>v.setUint16(8,257,true),v=>v.setUint16(6,33,true),v=>v.setUint32(0,5,true),v=>v.setUint32(128,0,true),v=>v.setUint32(layer.at,5,true),v=>v.setUint16(layer.at+8,1,true),v=>v.setUint16(layer.at+16,1,true),v=>v.setUint8(layer.at+18,150),v=>v.setUint16(cel.at+13,1,true),v=>v.setUint8(cel.at+12,100),v=>v.setInt16(cel.at+8,-1,true)])await assert.rejects(decodeAseprite(mutate(base,fn)));
+ for(const fn of [v=>v.setUint16(12,8,true),v=>v.setUint16(8,257,true),v=>v.setUint16(6,33,true),v=>v.setUint32(0,5,true),v=>v.setUint32(128,0,true),v=>v.setUint32(layer.at,5,true),v=>v.setUint16(layer.at+8,1,true),v=>v.setUint16(layer.at+16,1,true),v=>v.setUint16(cel.at+13,1,true),v=>v.setUint8(cel.at+12,100),v=>v.setInt16(cel.at+8,-1,true)])await assert.rejects(decodeAseprite(mutate(base,fn)));
  await assert.rejects(decodeAseprite(new Uint8Array(MAX_NATIVE_BYTES+1)));await assert.rejects(decodeAseprite(base.subarray(0,base.length-1)));
- const tagged=mutate(base,v=>v.setUint16(cel.at+4,0x2018,true));assert.match((await decodeAseprite(tagged)).warnings.join(),/metadata/);
+ const tagged=mutate(base,v=>v.setUint16(cel.at+4,0x2020,true));assert.match((await decodeAseprite(tagged)).warnings.join(),/metadata/);
 });
 test('Piskel preserves frame/layer order, hidden pixels and chosen global rate; conversion is reported',async()=>{
  const doc=fixture(),out=await encodePiskel(doc,10),decoded=await decodePiskel(out.text);assert.match(out.warnings.join(),/timing/);assert.equal(decoded.document.layers[1].visible,false);for(let l=0;l<2;l++)for(let f=0;f<2;f++)assert.deepEqual(decoded.document.layers[l].cels[decoded.document.frames[f].id],doc.layers[l].cels[doc.frames[f].id]);assert.deepEqual(decoded.document.frames.map(f=>f.duration),[100,100]);assert.match(decoded.warnings.join(),/palette/);await assert.rejects(encodePiskel(fixture(64)),/alpha/);assert.throws(()=>piskelExportWarnings(doc,0));assert.throws(()=>piskelExportWarnings(doc,Infinity));

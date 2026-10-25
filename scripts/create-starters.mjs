@@ -27,5 +27,26 @@ try{
  const garden=new PixelEditor(createDocument(32,24,'Garden patch'));garden.renameLayer('Soil');rows(garden,['..gggggggggggggggggggggggggggg..','.gllllllllllllllllllllllllllllg.','gllllllllllllllllllllllllllllllg','gttttttttttttttttttttttttttttttg','.ttstttttstttttttstttttttsttttt.','..tttttttttttttttttttttttttttt..','....tttttttttttttttttttttttt....','......tttttttttttttttttttt......'],0,16);
  garden.addLayer();garden.renameLayer('Plants');rows(garden,['.....ppp.....','....pwwwp....','...pwwywwp...','....pwwwp....','.....ppp.....','......g......','...ll.g......','..llllg..ll..','...llgg.llll.','.....gg..ll..','......g......','......g......'],1,5);rows(garden,['.....lll.....','....lwwwl....','...lwwywwl...','....lwwwl....','.....lll.....','......g......','......g.ll...','..ll..gllll..','.llll.g.ll...','..ll.gg......','......g......','......g......'],17,5);
  await asset('garden-patch','Garden patch','A small two-layer flower bed on a rectangular canvas.',garden.document);
+ // Nine more original editable studies, each with its own geometry and timing.
+ for(const [id,name,w,h,kind,frames,duration]of [
+ ['slime-hop','Slime hop',24,24,'slime',6,110],['candle-flicker','Candle flicker',16,32,'candle',4,180],['rain-window','Rain window',32,32,'rain',8,90],['coin-spin','Coin spin',16,16,'coin',6,100],['sea-waves','Sea waves',48,24,'waves',8,140],['tiny-house','Tiny house',32,32,'house',1,100],['sword-icon','Sword icon',24,32,'sword',1,100],['neon-grid','Neon grid',64,32,'grid',4,220],['walk-cycle','Walk cycle',32,32,'walk',4,160]]){
+  const e=new PixelEditor(createDocument(w,h,name));e.renameLayer('Backdrop');
+  if(['rain','waves','grid','house'].includes(kind)){e.fill(0,0,hexColor('#19253d'));e.commit();}
+  e.addLayer();e.renameLayer(name);
+  for(let f=0;f<frames;f++){if(f){e.addFrame(true);e.document.cel.pixels.fill(0);}e.setFrameDuration(duration);
+   if(kind==='slime'){const lift=[0,2,5,6,3,0][f];e.shape('Ellipse',{x:5,y:12-lift},{x:19,y:22-lift},hexColor('#8bab60'),true);for(const x of [9,15])e.paint(x,16-lift,hexColor('#19253d'));}
+   if(kind==='candle'){e.shape('Rectangle',{x:5,y:15},{x:10,y:29},hexColor('#fff0c7'),true);e.shape('Ellipse',{x:6-f%2,y:6+f%3},{x:9+f%2,y:15},hexColor('#ffc05c'),true);}
+   if(kind==='rain')for(let n=0;n<18;n++){const x=(n*11)%32,y=(n*7+f*3)%32;e.shape('Line',{x,y},{x,y:Math.min(31,y+3)},hexColor('#7cb9c9'));}
+   if(kind==='coin'){const half=[5,3,1,2,4,5][f];e.shape('Ellipse',{x:8-half,y:2},{x:8+half,y:13},hexColor('#ffc05c'),true);e.shape('Line',{x:8,y:4},{x:8,y:10},hexColor('#fff0c7'));}
+   if(kind==='waves')for(let x=0;x<w;x++)for(let y=0;y<3;y++){const yy=12+y*4+Math.round(Math.sin((x+f*3)/5)*2);e.paint(x,yy,hexColor(['#7cb9c9','#344b70','#fff0c7'][y]));}
+   if(kind==='house'){e.shape('Rectangle',{x:6,y:14},{x:25,y:29},hexColor('#9d7552'),true);for(let y=4;y<15;y++)e.shape('Line',{x:16-(y-4),y},{x:16+(y-4),y},hexColor('#a43f3b'));e.shape('Rectangle',{x:13,y:21},{x:18,y:29},hexColor('#19253d'),true);for(const x of [8,21])e.shape('Rectangle',{x,y:17},{x:x+3,y:20},hexColor('#ffc05c'),true);}
+   if(kind==='sword'){e.shape('Line',{x:5,y:25},{x:19,y:5},hexColor('#7cb9c9'),false,{size:3,shape:'square'});e.shape('Line',{x:3,y:19},{x:13,y:26},hexColor('#ffc05c'));e.shape('Line',{x:3,y:29},{x:7,y:24},hexColor('#715144'),false,{size:3,shape:'square'});}
+   if(kind==='grid'){for(let x=f;x<w;x+=8)e.shape('Line',{x,y:0},{x,y:h-1},hexColor('#d694b9'));for(let y=f;y<h;y+=8)e.shape('Line',{x:0,y},{x:w-1,y},hexColor('#7cb9c9'));}
+   if(kind==='walk'){const shift=[-3,0,3,0][f];e.shape('Ellipse',{x:12,y:4},{x:19,y:11},hexColor('#ffc05c'),true);e.shape('Rectangle',{x:12,y:12},{x:19,y:21},hexColor('#7cb9c9'),true);e.shape('Line',{x:14,y:21},{x:11+shift,y:28},hexColor('#fff0c7'),false,{size:2,shape:'square'});e.shape('Line',{x:17,y:21},{x:20-shift,y:28},hexColor('#fff0c7'),false,{size:2,shape:'square'});}
+   e.commit();
+  }
+  if(frames>1)e.setTag({name:'Loop',from:0,to:frames-1,mode:'loop'});
+  await asset(id,name,({slime:'Six-frame squash and hop.',candle:'Tall canvas with a flickering flame.',rain:'Eight-frame rainfall on a separate layer.',coin:'Six widths for a spinning pickup.',waves:'Wide looping water tile.',house:'Static layered building study.',sword:'Thick-stroke inventory icon.',grid:'Wide animated neon pattern.',walk:'Four-frame original character exercise.'})[kind],e.document);
+ }
  await writeFile(resolve('../glitchbong/src/app/tools/ezpix/editor/starter-catalog.json'),JSON.stringify(catalog,null,2)+'\n');console.log('Authored '+catalog.length+' starter projects and matching PNG previews.');
 }finally{await browser.close();}

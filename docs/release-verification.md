@@ -1,7 +1,7 @@
 # EzPix remaining release verification worksheet
 
 Current local evidence is in
-[current handoff](../../glitchbong/docs/ezpix-continue264.md). This worksheet records
+[current local rework](../../glitchbong/docs/ezpix-issues3-local.md). This worksheet records
 remaining manual gates; its presence does not mean any row passed. Use original
 fixtures, keep captures local, and record actual hardware, OS/browser versions,
 date, result and artifact location for each run. Never attach personal artwork,
@@ -199,7 +199,7 @@ Current core/companion 0.133.0 retains v10 writing/v1-v10 reading and identical
 activeTab/scripting/alarms permissions. Command discovery/configuration, thirteen
 staged raster/cel/timeline families and display-only expanded onion skins are
 implemented. Local evidence and reproducible commands are consolidated in
-[current handoff](../../glitchbong/docs/ezpix-continue264.md). Numeric geometry controls are
+[current local rework](../../glitchbong/docs/ezpix-issues3-local.md). Numeric geometry controls are
 not canvas transform handles, text/fonts, live effects or document mode support.
 All physical devices/stylus, other browsers, external human application/engine
 roundtrips, endurance, actual peak memory, minimum hardware, licensing/name,
@@ -439,7 +439,7 @@ portable/device authored-project library and multi-document asset ZIPs. Restorin
 workspace files/checkpoints starts empty histories; ordinary File import still
 replaces the active tab. Original issue inputs, minimal companion permissions and
 local deterministic processing remain unchanged. See the
-[current handoff](../../glitchbong/docs/ezpix-continue264.md) for exact limits and evidence. Physical devices,
+[current local rework](../../glitchbong/docs/ezpix-issues3-local.md) for exact limits and evidence. Physical devices,
 Firefox/Safari, human external-app/engine use, endurance/true peak memory/minimum
 hardware, licence/name and hosted/offline/update/store gates remain open.
 
@@ -608,7 +608,7 @@ No commit, push, deployment or store publication was performed.
 
 ## Indexed selection masks (255-264 / 13he-13hn)
 
-Current core, website vendor and companion are **0.252.0**. Project writer
+Current core, website vendor and companion are **0.282.0**. Project writer
 **v16**, readers **v1-v16**, indexed/workspace/library envelopes v1 remain.
 [Handoff 264](../../glitchbong/docs/ezpix-continue264.md) completes exactly phases **255-264**;
 zero remain in this requested batch. Next is **13ho / 265**.
@@ -639,3 +639,53 @@ profiles, integrated tilemaps, pinned parity auditing and separate physical/
 human/non-Chromium/endurance/licence/hosted/store gates remain open. No rough
 planning estimate is reduced mechanically by ten. No AI, upload, telemetry,
 dependency, capture-protocol or permission changes; no commit/push/deployment.
+
+
+## Local phases 265-284 / 13ho-13ih: Aseprite fidelity
+
+The current [20-phase handoff](../../glitchbong/docs/ezpix-continue284.md) records exact scope and verification. Shared
+core/companion and website vendor 0.272.0 retain writer v16/readers v1-v16.
+Aseprite RGBA/indexed exchange retains ordered RGBA slots, index planes,
+matching-position cel links, normal opacity and pixel locks, four supported
+animation-tag modes and static slice rectangles/pivots. Complete modern/legacy
+palettes, bounded raw/zlib cels and transparent sparse expansion are supported.
+Relocated linked cels become independent with review. True native profiles,
+gray-channel storage, groups/blends, cel opacity/z-index, animated/nine-patch
+slices, broader tag repeats, tilemaps and pinned parity auditing remain open.
+One fully opaque indexed background layer is supported; mixed transparency
+roles and changing indexed tables reject. Separate project swatches/palette
+organisation and user data are reviewed losses. No broad planning count has
+been mechanically reduced by twenty. Physical devices, non-Chromium browsers,
+human external-editor use, endurance/peak memory/licence/hosted/store gates
+remain separate. No AI, uploads, telemetry, dependencies or permission expansion.
+No commit, push, deployment or publication is part of this continuation.
+
+
+## Local phases 285-294 / 13ii-13ir: indexed ink families
+
+Shared core/companion/vendor 0.282.0 retain writer v16/readers v1-v16. Indexed
+main-canvas tools add configurable dither density/origin and signed shading,
+exact original-slot replacement, ordered ramps with signed clamp/wrap, seeded
+coordinate-anchored spray, exact-table captured/file stamps with explicit
+transparent painting, and four/eight/global exact-slot fill. Shared paths retain
+spacing/stabilization/pixel-perfect, clipping/wrapping/mirrors, alpha lock,
+private settings, preview Apply/Cancel, stale rejection and one linked atomic
+Undo. Brush settings/stamps are session tools, not new project schema fields.
+See [current local rework](../../glitchbong/docs/ezpix-issues3-local.md) for exact measured evidence.
+
+The [full feature inventory and completion estimate](../../glitchbong/docs/ezpix-completion-inventory.md) replaces the
+old broad-family phase allowance with a named **60-98** further bounded-phase
+planning range after 294. Chrome capture/conversion/handoff already works
+locally; its **6-10** finish/release portion is included in that total. Literal
+API/desktop parity, capacities, proprietary formats and external release gates
+remain explicit, without a false exact completion promise. No owner issue files,
+runtime dependencies, permissions, AI, image uploads or telemetry are added.
+No commit, push, deployment or publication is part of this continuation.
+
+Current phases 295-298: indexed pressure size and discrete density; see the
+[current local rework](../../glitchbong/docs/ezpix-issues3-local.md). No extension permission/protocol expansion.
+Physical stylus and all separate release gates remain open.
+
+Current phases 299-308 add reviewed Aseprite rendered RGBA import; see the
+[current local rework](../../glitchbong/docs/ezpix-issues3-local.md). Strict editable import remains separate. No transfer
+protocol/permission expansion. Physical, external-app and release gates remain.

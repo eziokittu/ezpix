@@ -1,4 +1,4 @@
-# @ezpix/core 0.252.0
+# @ezpix/core 0.298.0
 
 Original deterministic RGBA editor and image conversion engine. No runtime
 dependencies or inference. Build with the workspace `npm run build`.
@@ -1575,7 +1575,7 @@ open. Project writer/readers stay v16/v1-v16; no permissions or protocol change.
 
 ## Indexed selection masks (255-264)
 
-Version 0.252.0 retains project v16 and indexed/workspace/library envelopes v1.
+Version 0.272.0 retains project v16 and indexed/workspace/library envelopes v1.
 Transient binary masks are now valid on private indexed selection snapshots.
 `advancedSelectionMask` dispatches indexed wand/global range to exact original
 slot comparison (tolerance 0, RGBA setting, four/eight neighbours); duplicate
@@ -1597,3 +1597,152 @@ Plans privately copy masks, recheck full source/editability/budgets at Apply,
 and update linked cels atomically. Membership edits are transient; artwork
 history and v16 project persistence retain resulting slot planes. No indexed
 RGBA colour effects, native Aseprite fidelity or persistent layer masks implied.
+
+
+## Phases 265-284: bounded Aseprite fidelity (0.272.0)
+
+`decodeAseprite` reads RGBA32 or indexed8 with original ordered RGBA slots,
+including duplicate/unused entries and designated transparent hidden RGB. Input
+is privately snapshotted before async inflate. 16 MiB input, 256 pixels/axis,
+16 layers, 32 frames, 8192 chunks and the existing 4 MiB dense cel budget apply.
+Modern tables take precedence globally over legacy 8/6-bit packets. Initial
+palettes must be complete; subsequent partial updates may preserve the same
+indexed table, but any frame-varying indexed table rejects. Additional zero-alpha
+slots reject. Header transparency overrides only the designated slot with review.
+One opaque indexed background layer with full-canvas cels is supported; mixed
+background/transparent roles and multiple opaque background layers reject.
+
+Raw/zlib cels inside the canvas expand with transparent padding. Absent indexed
+cels get independent transparent planes. Earlier-frame links preserve plane and
+raster identity when positions match. Relocated links expand independently with
+review. Forward/self/missing-source links reject. Writer emits full-canvas raw
+cels and earlier-frame links, including empty RGBA links; equal independent cels
+are never implicitly linked. Normal layer opacity and editable/pixel-lock flags
+survive both directions. Movement-lock/prefer-link/UUID metadata is reviewed loss.
+
+Native tags support forward infinite/once, reverse infinite and ping-pong
+infinite. Other repeats/directions reject. Static frame-zero single-key slices
+retain in-canvas bounds and signed local pivots +/-1024; animated, hidden and
+nine-patch slices reject. Tag colours/user data are reviewed losses. Groups,
+blends, cel opacity/z-index, profiles, grayscale, tilemaps and external files
+remain unsupported. `asepriteExportWarnings` reports actual omitted metadata,
+including separate project swatches when indexed slots take the native palette.
+Project v16, indexed/workspace/library v1 and capture permissions are unchanged.
+The specification reference is [the official format document](https://github.com/aseprite/aseprite/blob/main/docs/ase-file-specs.md).
+
+
+## Phases 285-294: indexed ink families (0.296.0)
+
+`IndexedBrush.mode` adds `replace`, `ramp`, `spray`, `stamp` alongside existing
+paint/dither/shade. Optional fields preserve earlier callers. Dither density
+0-100 and integer originX/Y +/-256 use the existing 4x4 Bayer matrix, strict
+`matrix*100 < density*16`, anchored to destination minus origin modulo four.
+Shade reads the original index once per destination and clamps signed -16..16
+steps; the designated transparent source remains untouched. Explicit ramps
+contain 1-256 distinct existing slot IDs in order; signed steps clamp or wrap.
+Slots outside the ramp stay unchanged; explicit transparent ramp entries may
+paint/erase. Replace compares the exact original `replaceSlot`, including equal
+RGBA slots. All modes retain exact table bytes and do not quantize colours.
+
+Spray uses seed 0..2^32-1, density 0-100 and an integer destination-index hash:
+`n=(imul(i+1,0x9e3779b1)^seed)>>>0`, then the 0x7feb352d and 0x846ca68b xor-shift
+mix; accept when unsigned result modulo 100 is below density. Each destination
+is visited once, so overlaps do not accumulate and repeated coordinates replay
+exactly. This is coordinate-anchored scatter, not time/rate-based airbrushing.
+
+`copyIndexedStamp` validates/copies an indexed cel up to 32x32 and requires the
+identical ordered RGBA table and transparent role. Stamps use native slot bytes,
+center with floor((dimension-1)/2), clip/wrap/mirror, and first footprint visit
+wins. By default transparent stamp slots leave holes; `stampTransparent:true`
+paints the designated transparent slot. Keep-alpha requires equal original/new
+slot alpha and skips originally transparent destinations. Palette changes can
+invalidate a session stamp. Existing session/file v1 stamp data is an indexed
+cel, not new persistent project metadata. `captureIndexedSelection` and
+`.ezindexed` provide exact local stamp capture/file exchange.
+
+Indexed flood optionally accepts connectivity 4/8 and global Boolean replacement.
+It samples the seed's original exact slot; duplicate-RGBA slots remain distinct.
+Only the active cel and linked peers change. Existing 4096 anchors, 65536 path
+samples, 1-32 brush size and 8M mirrored footprint visits remain enforced.
+Spacing/stabilization/pixel-perfect use shared integer path geometry. Authored
+plans privately clone settings, recheck source and locks and apply one atomic
+linked Undo. No-op edits preserve Redo. No palette growth, RGBA effects, pressure
+alpha interpolation, persistent stamps or runtime dependencies are introduced.
+
+## Indexed pressure (phases 295-298)
+
+`IndexedBrush.pressure` optionally holds Boolean size/density flags, minimum
+0-100 percent and linear/soft/firm response. Size supports paint/dither/spray;
+density supports only dither/spray. Enabled unsupported combinations reject.
+`DrawingPoint.pressure` is finite 0-1; absent is 1. The existing shared connected,
+stabilized, spaced path interpolates pressure (stationary changes use the latest).
+Response is p, sqrt(p), or p*p. Factor is (minimum+(100-minimum)*response)/100.
+Size rounds floor(base*factor+0.5), minimum one pixel; density rounds likewise to
+an integer percentage. Density changes Bayer threshold or coordinate-hash coverage,
+never slot colour/alpha. Dither density zero writes secondary slots; spray zero
+writes nothing. Original-source first-destination-visit semantics still apply,
+including overlap at different pressures. Base-size footprint bounds dominate
+the dynamic tips; the existing 8M visit budget is unchanged. Stamp resizing,
+pressure alpha interpolation, and pressure in other indexed inks remain unsupported.
+The website uses pen samples; mouse/touch/keyboard are full pressure. Changing
+ink mode resets session pressure settings. Pending plans own copied samples and
+settings, retain exact slot identity/linked cels and one atomic Undo. No schema
+change; project writer v16 and readers v1-v16 remain.
+
+## Reviewed Aseprite rendered import (phases 299-308)
+
+`decodeAseprite(bytes,title,mode)` defaults to `preserve`. The explicit third
+argument `rendered-rgba` renders supported visible normal layers to one unlocked,
+opacity-255 RGBA layer with independent frame buffers. Always review its loss
+warning before replacing a project. Timing, supported tags and static slices
+remain. Hidden layers, edit locks, links, indexed slots and fully transparent
+hidden RGB are omitted/baked; keep the original native file. It is not editable
+cel-opacity/z-index metadata preservation or true gray-channel storage.
+
+Rendered mode additionally accepts 16-bit grayscale value/alpha pairs, 8-bit
+per-frame indexed palettes (including full-table size changes, partial same-size
+updates and extra zero-alpha slots), cel opacity/z-index, mixed indexed background
+roles, bounded off-canvas images and relocated linked chains. Linked raw data is
+resolved from an earlier source; current frame palette/position/opacity/z-index
+apply independently. Indexed background layers use palette alpha for the header
+slot; other layers force that slot transparent. Missing palette/indices/links,
+partial palette resizes and unsupported variants reject, including hidden art.
+
+Cel/layer opacity combines as floor((layer*cel+127)/255), then the existing
+straight-alpha normal compositor rounds final channels once. Z order compares
+layer index plus signed cel offset, then signed offset. This follows the public
+[ASE structure and ordering specification](https://github.com/aseprite/aseprite/blob/main/docs/ase-file-specs.md)
+with EzPix's explicit compositor/rounding contract; it is not a human Aseprite
+pixel-parity certificate. Bounds remain 256px/axis, 16 layers, 32 frames, 4 MiB
+dense RGBA cel equivalent, 8192 chunks and 16 MiB encoded input. Additional raw
+unique decoded cel bytes cap at 4 MiB before allocation/decompression; linked
+raw buffers are counted once. Raw cel dimensions cap at 256/axis, then output
+clips to canvas. Groups/blends/tilemaps, custom profiles, precise cel transforms,
+animated/nine-patch slices and other unsupported structures still reject.
+
+The website mode selector invalidates staged/busy results and prepared downloads;
+choose the file again after changing it. Read errors, Cancel and stale async
+results retain artwork. Import uses existing reviewed whole-document replacement
+and starts a fresh history; it does not promise Undo back across file replacement.
+Subsequent artwork edits retain normal atomic Undo. No project schema, transfer
+protocol, permission or runtime dependency change; writer v16/readers v1-v16.
+
+## Issues3 local product rework (0.297.0)
+
+`focusRaster` supports crop, polygon membership and border-connected colour removal.
+`trackFocus` performs bounded template matching; `focusAnimation` converts recorded
+frames into a shared-palette editable sprite. No still-image pose generation.
+`mountConverter` opens shared Focus studio first; Full-image conversion retains the
+previous conversion controls behind a disclosure. Video/camera do not upload media.
+`readArtworkImage` adds static WebP and restricted SVG; `encodeBrowserImage` exports
+reviewed selected-frame JPEG (white matte) and WebP using browser encoding.
+
+`createLargeCanvas`, `LargeCanvasEditor`, `encodeLargeProject`, `decodeLargeProject`
+and `exportLargePng` provide separate sparse single-surface editing to 10240px per
+axis. Dense animation limits and project-v16 schema are unchanged. Tiled mode is
+not a claim that dense tools or native codecs accept 10240px layered animation.
+See the website [issues3 contract](../../../glitchbong/docs/ezpix-issues3-plan.md).
+
+Shape outlines accept brush size/tip; indexed shape operations mirror that width.
+Jumble samples existing neighbouring RGBA with a deterministic seed.
+`PixelEditor.reorderFrame(from,to)` moves a frame in one structural Undo operation.

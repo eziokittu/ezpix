@@ -16,7 +16,7 @@ export function unbase64(s:unknown){if(typeof s!=='string'||s.length>MAX_NATIVE_
 export class Reader{
  at=0;view:DataView;constructor(readonly bytes:Uint8Array){this.view=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength);}
  take(n:number){if(!Number.isInteger(n)||n<0||this.at+n>this.bytes.length)fail('Truncated native structure.');const b=this.bytes.subarray(this.at,this.at+n);this.at+=n;return b;}
- u8(){return this.take(1)[0];}u16(){this.take(2);return this.view.getUint16(this.at-2,true);}i16(){this.take(2);return this.view.getInt16(this.at-2,true);}u32(){this.take(4);return this.view.getUint32(this.at-4,true);}
+ u8(){return this.take(1)[0];}u16(){this.take(2);return this.view.getUint16(this.at-2,true);}i16(){this.take(2);return this.view.getInt16(this.at-2,true);}i32(){this.take(4);return this.view.getInt32(this.at-4,true);}u32(){this.take(4);return this.view.getUint32(this.at-4,true);}
  text(){return new TextDecoder('utf-8',{fatal:true}).decode(this.take(this.u16()));}
  end(){if(this.at!==this.bytes.length)fail('Unexpected bytes in native structure.');}
 }

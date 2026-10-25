@@ -19,7 +19,7 @@ test('v9 canonical links roundtrip; hostile forward/self/cyclic/chained/cross-la
  const v8=structuredClone(data);v8.version=8;v8.layers[0].cels=v8.frames.map(f=>({frameId:f.id,empty:true}));const old=decodeProject(JSON.stringify(v8));assert.equal(hasLinkedCels(old),false);assert.equal(new Set(Object.values(old.layers[0].cels)).size,3);v8.layers[0].cels[1]={frameId:'frame-2',link:'frame-1'};assert.throws(()=>decodeProject(JSON.stringify(v8)));
  const before=encodeProject(d);assert.throws(()=>e.linkCel('frame-999'));assert.equal(encodeProject(d),before);e.toggleLayerLock();assert.throws(()=>e.linkCel('frame-2'));assert.throws(()=>e.unlinkCel());
 });
-test('native exports expand linked identity, preserve render/timing and report loss',async()=>{
+test('Aseprite retains linked identity; other native exports review expansion',async()=>{
  const e=fixture(),d=e.document;e.selectFrame('frame-1');e.paint(0,0,[9,8,7,255]);e.commit();e.selectFrame('frame-2');e.linkCel('frame-1');const before=encodeProject(d),ase=(await decodeAseprite(encodeAseprite(d))).document,piskel=await encodePiskel(d,10),out=(await decodePiskel(piskel.text)).document;
- for(const imported of [ase,out]){assert.equal(hasLinkedCels(imported),false);for(let i=0;i<3;i++)assert.deepEqual(composite(imported,imported.frames[i].id),composite(d,d.frames[i].id));}assert.ok(piskel.warnings.some(w=>w.includes('Linked cels')));assert.ok(encodePsd(d,'frames-as-layers').warnings.some(w=>w.includes('Linked cels')));assert.equal(encodeProject(d),before);
+ for(const imported of [ase,out]){assert.equal(hasLinkedCels(imported),imported===ase);for(let i=0;i<3;i++)assert.deepEqual(composite(imported,imported.frames[i].id),composite(d,d.frames[i].id));}assert.ok(piskel.warnings.some(w=>w.includes('Linked cels')));assert.ok(encodePsd(d,'frames-as-layers').warnings.some(w=>w.includes('Linked cels')));assert.equal(encodeProject(d),before);
 });

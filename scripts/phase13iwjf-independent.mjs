@@ -1,0 +1,7 @@
+import {encodeNativePng} from '../packages/core/dist/native-png.js';
+import {readFile,writeFile,mkdir} from 'node:fs/promises';import {resolve} from 'node:path';import {spawnSync} from 'node:child_process';import assert from 'node:assert/strict';
+import {decodeAseprite,encodeAseprite,encodeProject,composite,ENGINE_VERSION} from '../packages/core/dist/index.js';
+const out=resolve('artifacts/phase13iwjf-independent');await mkdir(out,{recursive:true});
+const python=args=>assert.equal(spawnSync('python',['-X','utf8','scripts/phase13iwjf-readers.py',...args],{stdio:'inherit',windowsHide:true}).status,0);python(['--generate']);const meta=JSON.parse(await readFile(resolve(out,'cases.json'),'utf8'));assert.equal(meta.version,ENGINE_VERSION);
+for(const c of meta.cases){const bytes=new Uint8Array(await readFile(resolve(out,c.file)));await assert.rejects(decodeAseprite(bytes,c.file.replace('.aseprite','')));const r=await decodeAseprite(bytes,c.file.replace('.aseprite',''),'rendered-rgba'),d=r.document;assert.ok(r.warnings.some(w=>w.includes('flattens')));await writeFile(resolve(out,`case-${c.id}.ezpix`),encodeProject(d));const rt=(await decodeAseprite(encodeAseprite(d))).document;await writeFile(resolve(out,`case-${c.id}-roundtrip.json`),JSON.stringify(rt.frames.map(f=>[...composite(rt,f.id)])));for(const [i,f]of d.frames.entries())await writeFile(resolve(out,`case-${c.id}-${i}.png`),await encodeNativePng(d.width,d.height,composite(d,f.id)));}
+python([]);

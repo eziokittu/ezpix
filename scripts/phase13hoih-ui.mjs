@@ -1,0 +1,39 @@
+import {chromium} from 'playwright';import {spawn,spawnSync} from 'node:child_process';
+import {readFile,writeFile,mkdir} from 'node:fs/promises';import {resolve} from 'node:path';import assert from 'node:assert/strict';
+import {decodeAseprite,encodeProject,decodeProject,composite,ENGINE_VERSION,encodeAseprite} from '../packages/core/dist/index.js';
+const out=resolve('artifacts/phase13hoih-ui'),fixtures=resolve('artifacts/phase13hoih-independent'),web=resolve('../glitchbong'),base='http://localhost:3791';await mkdir(out,{recursive:true});
+const server=spawn(process.execPath,[resolve(web,'node_modules/next/dist/bin/next'),'start','-p','3791'],{cwd:web,windowsHide:true,stdio:'ignore'});let browser,page,checks=0,previewChecks=0;const downloads=[];
+try{
+ for(let i=0;i<120;i++){try{if((await fetch(base+'/tools/ezpix')).ok)break;}catch{}await new Promise(r=>setTimeout(r,500));}
+ browser=await chromium.launch({channel:'chrome',headless:true});page=await browser.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('dialog',d=>d.accept());
+ const b=name=>page.getByRole('button',{name,exact:true}),l=name=>page.getByLabel(name,{exact:true});
+ await page.goto(base+'/tools/ezpix');await b('Use default canvas').click();
+ const load=async text=>{await page.locator('input[accept=".ezpix,application/json"]').setInputFiles({name:'source.ezpix',mimeType:'application/json',buffer:Buffer.from(text)});await page.locator('.ez-statusbar [data-tip="Project opened"]').waitFor();};
+ const save=async name=>{const ev=page.waitForEvent('download');await b('Download project').click();await(await ev).saveAs(resolve(out,name));await b('Dismiss save notification').click();return readFile(resolve(out,name),'utf8');};
+ const open=async()=>{await b('Export').click();await page.getByRole('dialog',{name:'Import & export',exact:true}).waitFor();};
+ const close=async()=>{await b('Close Import & export').click();};
+ const project=await readFile(resolve(fixtures,'fixture.ezpix'),'utf8');
+ for(const width of [1440,768,390,320]){
+  await page.setViewportSize({width,height:width<=390?640:740});
+  for(const filename of ['original-8-0.aseprite','original-8-1.aseprite','original-32-2.aseprite']){
+   await load(project);const bytes=await readFile(resolve(fixtures,filename)),expected=(await decodeAseprite(new Uint8Array(bytes),filename.replace('.aseprite',''))).document;
+   await open();await l('Native project file').setInputFiles({name:filename,mimeType:'application/octet-stream',buffer:bytes});await l('Native storage summary').waitFor();
+   assert.match(await l('Native storage summary').innerText(),expected.indexed?/Indexed:/:/RGBA storage/);assert.ok(await b('Replace canvas with import').isEnabled());checks++;
+   const compare=async frame=>{await page.getByText(`Staged ${expected.width} x ${expected.height}`,{exact:false}).filter({hasText:`Preview frame ${frame+1}:`}).waitFor();await page.waitForFunction(({pixels,w,h})=>{const canvas=document.querySelector('canvas[aria-label="Native import preview"]');if(!canvas)return false;const actual=canvas.getContext('2d').getImageData(0,0,w,h).data;return [false,true].some(willReadFrequently=>{const reference=new OffscreenCanvas(w,h),ctx=reference.getContext('2d',{willReadFrequently});ctx.putImageData(new ImageData(Uint8ClampedArray.from(pixels),w,h),0,0);return ctx.getImageData(0,0,w,h).data.every((v,i)=>v===actual[i]);});},{pixels:[...composite(expected,expected.frames[frame].id)],w:expected.width,h:expected.height}).catch(async e=>{await writeFile(resolve(out,'pixel-failure.json'),JSON.stringify({filename,frame,expected:[...composite(expected,expected.frames[frame].id)],actual:await page.locator('canvas[aria-label="Native import preview"]').evaluate(c=>[...c.getContext('2d').getImageData(0,0,c.width,c.height).data])}));throw e;});previewChecks++;};
+   await compare(0);if(filename==='original-8-1.aseprite'){await l('Native storage summary').scrollIntoViewIfNeeded();await page.screenshot({path:resolve(out,`preview-${width}.png`),fullPage:true});}await b('Next native frame').click();await compare(1);await b('Next native frame').click();await compare(2);await b('Previous native frame').click();
+   await b('Clear staged native file').click();await close();assert.equal(await save(`cancel-${width}-${filename}.ezpix`),project);checks++;
+   await open();await l('Native project file').setInputFiles({name:filename,mimeType:'application/octet-stream',buffer:bytes});await b('Replace canvas with import').click();await page.getByText('Native project imported. Download an EzPix project to keep your work.',{exact:true}).waitFor();
+   await b('Prepare Aseprite file').click();await b('Download Aseprite').waitFor();assert.ok(await b('Download Aseprite').isEnabled());const ev=page.waitForEvent('download');await b('Download Aseprite').click();const native=`native-${width}-${filename}`;await(await ev).saveAs(resolve(out,native));downloads.push({name:native,original:filename});checks++;
+   if(filename==='original-8-1.aseprite')await page.screenshot({path:resolve(out,`native-${width}.png`),fullPage:true});
+   await close();const saved=`import-${width}-${filename}.ezpix`,actual=await save(saved);assert.equal(actual,encodeProject(expected));downloads.push({name:saved,original:filename});checks++;
+   await open();await b('Prepare Aseprite file').click();await b('Download Aseprite').waitFor();await load(project);assert.equal(await b('Download Aseprite').count(),0);checks++;
+  }
+  await load(project);await open();await l('Native project file').setInputFiles({name:'broken.aseprite',mimeType:'application/octet-stream',buffer:Buffer.from([1,2,3])});await page.getByRole('status').filter({hasText:'Truncated native structure.'}).waitFor();assert.equal(await b('Replace canvas with import').count(),0);await close();assert.equal(await save(`invalid-${width}.ezpix`),project);checks++;
+  const warned=decodeProject(project);warned.paletteOrganisation={groups:[],locked:[]};await load(encodeProject(warned));await open();await b('Prepare Aseprite file').click();await l('I accept these export differences').waitFor();assert.ok(await b('Download Aseprite').isDisabled());await l('I accept these export differences').check();assert.ok(await b('Download Aseprite').isEnabled());await close();checks++;
+  const bytes=await readFile(resolve(fixtures,'original-8-0.aseprite'));let at=144;while(bytes.readUInt16LE(at+4)!==0x2019)at+=bytes.readUInt32LE(at);bytes[at+31]=255;
+  await load(project);await open();await l('Native project file').setInputFiles({name:'alpha.aseprite',mimeType:'application/octet-stream',buffer:bytes});await l('I reviewed the import differences').waitFor();assert.ok(await b('Replace canvas with import').isDisabled());await l('I reviewed the import differences').check();assert.ok(await b('Replace canvas with import').isEnabled());await b('Clear staged native file').click();await close();assert.equal(await save(`review-cancel-${width}.ezpix`),project);checks++;
+  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));console.log('PASS native width',width,checks);
+ }
+ assert.deepEqual(errors,[]);await writeFile(resolve(out,'result.json'),JSON.stringify({status:'passed',version:ENGINE_VERSION,buildId:(await readFile(resolve(web,'.next/BUILD_ID'),'utf8')).trim(),browser:browser.version(),widths:[1440,768,390,320],checks,previewChecks,downloads},null,2));
+ const r=spawnSync('python',['-X','utf8','scripts/phase13hoih-browser-readers.py'],{stdio:'inherit',windowsHide:true});assert.equal(r.status,0);
+}catch(e){if(page){await page.screenshot({path:resolve(out,'failure.png'),fullPage:true}).catch(()=>{});await writeFile(resolve(out,'failure.txt'),await page.locator('body').innerText()).catch(()=>{});}throw e;}finally{await browser?.close();server.kill();}

@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {createDocument,PixelEditor,encodeProject,decodeProject,composite,encodePsd,decodePsd,encodeOra,decodeOra,encodeAseprite,piskelExportWarnings,companionImportPlan} from '../dist/index.js';
+import {createDocument,PixelEditor,encodeProject,decodeProject,composite,encodePsd,decodePsd,encodeOra,decodeOra,encodeAseprite,decodeAseprite,piskelExportWarnings,companionImportPlan} from '../dist/index.js';
 import {readNativeZip,writeNativeZip} from '../dist/native-zip.js';
 test('v5 metadata persists; all v1-v4 defaults remain opaque and unlocked; hostile properties fail',()=>{
  const e=new PixelEditor(createDocument(2,2));e.toggleLayerLock();e.setLayerOpacity(73);const text=encodeProject(e.document);assert.equal(JSON.parse(text).version,16);const back=decodeProject(text);assert.equal(back.layers[0].locked,true);assert.equal(back.layers[0].opacity,73);
@@ -13,8 +13,8 @@ test('opacity golden, lock enforcement, duplicates and undo/redo preserve layer 
 test('merge down processes every frame, restores exact originals on undo and rejects hidden/locked inputs',()=>{
  const e=new PixelEditor(createDocument(2,1));e.paint(0,0,[255,0,0,255]);e.commit();e.addLayer();e.paint(0,0,[0,0,255,255]);e.commit();e.setLayerOpacity(128);e.addFrame(true);e.paint(1,0,[0,255,0,255]);e.commit();const before=encodeProject(e.document),frames=e.document.frames.map(f=>composite(e.document,f.id));e.mergeDown();assert.equal(e.document.layers.length,1);for(let i=0;i<2;i++)assert.deepEqual(composite(e.document,e.document.frames[i].id),frames[i]);e.undo();assert.equal(encodeProject(e.document),before);e.toggleLayerLock();assert.throws(()=>e.mergeDown());e.toggleLayerLock();e.toggleLayer();assert.throws(()=>e.mergeDown());
 });
-test('native opacity survives PSD/ORA; limited Aseprite/Piskel fail instead of dropping it',async()=>{
- const e=new PixelEditor(createDocument(2,1));e.paint(0,0,[13,23,33,73]);e.commit();e.setLayerOpacity(128);assert.equal(decodePsd(encodePsd(e.document).bytes).document.layers[0].opacity,128);assert.equal((await decodeOra((await encodeOra(e.document)).bytes)).document.layers[0].opacity,128);assert.throws(()=>encodeAseprite(e.document),/opacity/);assert.throws(()=>piskelExportWarnings(e.document,12),/opacity/);
+test('native opacity survives PSD/ORA; Aseprite retains opacity and Piskel refuses loss',async()=>{
+ const e=new PixelEditor(createDocument(2,1));e.paint(0,0,[13,23,33,73]);e.commit();e.setLayerOpacity(128);assert.equal(decodePsd(encodePsd(e.document).bytes).document.layers[0].opacity,128);assert.equal((await decodeOra((await encodeOra(e.document)).bytes)).document.layers[0].opacity,128);assert.equal((await decodeAseprite(encodeAseprite(e.document))).document.layers[0].opacity,128);assert.throws(()=>piskelExportWarnings(e.document,12),/opacity/);
  const preview=new PixelEditor(createDocument(1,1));preview.paint(0,0,[100,120,140,255]);preview.commit();preview.setLayerOpacity(128);assert.deepEqual([...encodePsd(preview.document).bytes.slice(-6)],[0,0,177,187,197,128]);
  const files=await readNativeZip((await encodeOra(e.document)).bytes),xml=new TextDecoder().decode(files.get('stack.xml')).replace(`opacity="${128/255}"`,'opacity="0.5"');files.set('stack.xml',new TextEncoder().encode(xml));const quantized=await decodeOra(writeNativeZip(files));assert.equal(quantized.document.layers[0].opacity,128);assert.match(quantized.warnings.join(),/rounded/);
 });
