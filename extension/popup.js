@@ -7,3 +7,5 @@ document.querySelectorAll('[data-mode]').forEach(button=>button.onclick=async()=
   catch(error){status.textContent=error.message??'Capture failed. Open a regular webpage and try again.';document.querySelectorAll('button').forEach(b=>b.disabled=false);}
 });
 document.querySelector('[data-resume]').onclick=()=>{void chrome.tabs.create({url:chrome.runtime.getURL('app.html')});window.close();};
+
+document.querySelector('[data-studio]').onclick=()=>{void chrome.tabs.create({url:chrome.runtime.getURL('app.html#studio')});window.close();};

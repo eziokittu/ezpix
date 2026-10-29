@@ -10,7 +10,7 @@ import {validateGroups,groupedComposite,type LayerGroup} from './groups.js';
 import {validateBlendMode,type BlendMode} from './blend.js';
 import { validateRaster, validateRecipe, type Raster, type Recipe } from './conversion.js';
 import { DEFAULT_PALETTE } from './toolkit.js';
-export const ENGINE_VERSION = '0.298.0';
+export const ENGINE_VERSION = '0.461.0';
 export const MAX_SIZE = 256, MAX_LAYERS = 16, MAX_FRAMES=32, MAX_CEL_BYTES=4*1024*1024, MAX_PROJECT_BYTES = 24 * 1024 * 1024;
 /** Project palette slots keep identity even when two slots have equal RGB. */
 export function validatePaletteSlots(value:unknown):string[]{if(!Array.isArray(value)||value.length<1||value.length>256||!value.every(c=>typeof c==='string'&&/^#[0-9a-f]{6}$/i.test(c)))throw new Error('A palette needs 1-256 six-digit hex colours.');return (value as string[]).map(c=>c.toLowerCase());}

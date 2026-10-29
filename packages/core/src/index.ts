@@ -5,6 +5,8 @@ export * from './indexed-geometry.js';
 import {validateIndexedDocument} from './indexed-document.js';
 export * from './indexed-document.js';
 export * from './indexed-cel.js';
+export * from './raw-indexed-png.js';
+export * from './large-indexed-png.js';
 import {editingInk,editingPixels,editingPalette,validateEditingPolicy} from './editing-policy.js';
 export * from './editing-policy.js';
 export * from './document-workspace.js';
@@ -422,3 +424,15 @@ export * from './indexed-tools.js';
 export * from './focus.js';
 
 export * from './large-canvas.js';
+export * from './large-mask.js';
+export * from './large-transform.js';
+
+export * from './large-layer-mask.js';
+
+export * from './large-mask-authoring.js';
+
+export * from './large-mask-timeline.js';
+
+export * from './large-indexed.js';
+
+export {PALETTE_PRESETS,type PalettePreset} from './palette-presets.js';

@@ -5,7 +5,10 @@
     "build": "tsc -p packages/core/tsconfig.json && node scripts/copy-core-assets.mjs",
     "test": "npm run build && node --test packages/core/test/*.test.mjs extension/test/*.test.mjs",
     "pack:core": "npm run build && node scripts/pack-core.mjs",
-    "build:extension": "npm run build && node scripts/build-extension.mjs"
+    "build:extension": "npm run build && node scripts/build-extension.mjs",
+    "package:extension": "npm run build:extension && node scripts/package-extension.mjs",
+    "release:local": "node scripts/release-local.mjs",
+    "test:studio": "npm run build && node --test extension/test/studio.test.mjs packages/core/test/raw-indexed-png.test.mjs"
   },
   "devDependencies": {
     "playwright": "^1.64.1",

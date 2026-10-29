@@ -1,8 +1,8 @@
 import {captureIndexedCel} from './indexed-document.js';
 import {composite,encodeProject,type PixelDocument} from './document.js';
 import type {Raster} from './conversion.js';
-import {pngChunk,decodeNativePngData} from './native-png.js';
-import {concat,deflate} from './native-utils.js';
+import {decodeNativePngData} from './native-png.js';
+import {encodeRawIndexedPng} from './raw-indexed-png.js';
 export const MAX_INDEXED_CEL_BYTES=128*1024;
 /** Palette entries are RGBA slots, including unused and duplicate opaque/partial-alpha slots. */
 export interface IndexedCel {width:number;height:number;palette:readonly (readonly number[])[];indices:Uint8Array;transparentIndex:number|null}
@@ -30,7 +30,7 @@ export function decodeIndexedCel(text:string):IndexedCel{
 export function reorderIndexedSlots(input:IndexedCel,order:readonly number[]):IndexedCel {const c=copyIndexedCel(input);if(!Array.isArray(order)||order.length!==c.palette.length||new Set(order).size!==order.length||Array.from(order).some(i=>!Number.isInteger(i)||i<0||i>=order.length))throw new Error('Slot order must be a complete permutation.');const inverse=Array.from({length:order.length},(_,i)=>order.indexOf(i));return {width:c.width,height:c.height,palette:order.map(i=>c.palette[i]),indices:c.indices.map(i=>inverse[i]),transparentIndex:c.transparentIndex===null?null:inverse[c.transparentIndex]};}
 export function replaceIndexedSlot(input:IndexedCel,slot:number,color:readonly number[]):IndexedCel{const c=copyIndexedCel(input);if(!Number.isInteger(slot)||slot<0||slot>=c.palette.length)throw new Error('Choose an existing slot.');const out={...c,palette:c.palette.map((p,i)=>i===slot?[...color]:p)};validateIndexedCel(out);return out;}
 /** PNG retains the declared slot table and exact index plane, including unused/duplicate slots. */
-export async function encodeIndexedCelPng(input:IndexedCel){const c=copyIndexedCel(input),header=new Uint8Array(13),v=new DataView(header.buffer);v.setUint32(0,c.width);v.setUint32(4,c.height);header[8]=8;header[9]=3;const rows=new Uint8Array((c.width+1)*c.height);for(let y=0;y<c.height;y++)rows.set(c.indices.subarray(y*c.width,(y+1)*c.width),y*(c.width+1)+1);return concat([Uint8Array.of(137,80,78,71,13,10,26,10),pngChunk('IHDR',header),pngChunk('PLTE',Uint8Array.from(c.palette.flatMap(p=>p.slice(0,3)))),pngChunk('tRNS',Uint8Array.from(c.palette.map(p=>p[3]))),pngChunk('IDAT',await deflate(rows)),pngChunk('IEND',new Uint8Array())]);}
+export async function encodeIndexedCelPng(input:IndexedCel){const c=copyIndexedCel(input);return encodeRawIndexedPng({...c,palette:c.palette.map(p=>[...p])});}
 export interface IndexedCelPlan {readonly baseline:string;readonly text:string;readonly slots:number;readonly transparentIndex:number|null;readonly preview:Uint8ClampedArray}
 const plans=new WeakMap<IndexedCelPlan,string>();
 export function prepareIndexedCel(doc:PixelDocument):IndexedCelPlan{const baseline=encodeProject(doc,false),c=indexRasterExact({width:doc.width,height:doc.height,pixels:composite(doc)}),text=encodeIndexedCel(c),plan=Object.freeze({baseline,text,slots:c.palette.length,transparentIndex:c.transparentIndex,get preview(){return expandIndexedCel(c).pixels;}});plans.set(plan,text);return plan;}

@@ -3,7 +3,7 @@ import {makeLayer,rasterCel,validateDuration,checkCelBudget,type PixelDocument,t
 import {layerEditable,groupAncestors} from './groups.js';
 export interface IndexedDocument {palette:number[][];transparentIndex:number|null;cels:Record<string,Record<string,Uint8Array>>}
 export type IndexedOperation=
- |{kind:'indexed-document';action:'enter'|'exit'|'clear'|'unlink'|'new-layer'|'duplicate-layer'|'new-frame'|'duplicate-frame'|'delete-frame'}
+ |{kind:'indexed-document';action:'enter'|'exit'|'clear'|'unlink'|'new-layer'|'duplicate-layer'|'delete-layer'|'new-frame'|'duplicate-frame'|'delete-frame'}
  |{kind:'indexed-document';action:'replace-slot';slot:number;color:number[]}
  |{kind:'indexed-document';action:'append-slot';color:number[]}
  |{kind:'indexed-document';action:'move-slot';slot:number;to:number}
@@ -43,6 +43,7 @@ export function indexedOperation(doc:PixelDocument,o:IndexedOperation){
   else if(o.action==='rectangle'){bounds(doc,o.x,o.y,o.width,o.height);for(let y=o.y;y<o.y+o.height;y++)p.fill(o.slot,y*doc.width+o.x,y*doc.width+o.x+o.width);}
   else{bounds(doc,o.x,o.y);const target=p[o.y*doc.width+o.x];if(target!==o.slot){const queue=[o.y*doc.width+o.x];while(queue.length){const i=queue.pop()!;if(p[i]!==target)continue;p[i]=o.slot;if(i%doc.width)queue.push(i-1);if(i%doc.width<doc.width-1)queue.push(i+1);if(i>=doc.width)queue.push(i-doc.width);if(i<doc.width*(doc.height-1))queue.push(i+doc.width);}}}}put(doc,p);
  }else if(o.action==='clear')put(doc,blank(doc));
+ else if(o.action==='delete-layer'){const layer=active(doc);if(doc.layers.length===1)throw new Error('Keep at least one indexed layer.');const at=doc.layers.indexOf(layer);delete v.cels[layer.id];doc.layers.splice(at,1);doc.activeLayerId=doc.layers[Math.min(at,doc.layers.length-1)].id;}
  else if(o.action==='unlink'){const l=active(doc);v.cels[l.id][doc.activeFrameId]=new Uint8Array(v.cels[l.id][doc.activeFrameId]);l.cels[doc.activeFrameId]=l.cels[doc.activeFrameId].slice();}
  else if(o.action==='link'){const l=active(doc);if(!doc.frames.some(f=>f.id===o.frameId))throw new Error('Choose an existing source frame.');v.cels[l.id][doc.activeFrameId]=v.cels[l.id][o.frameId];l.cels[doc.activeFrameId]=l.cels[o.frameId];}
  else if(o.action==='new-layer'||o.action==='duplicate-layer'){const src=active(doc);checkCelBudget(doc.width,doc.height,doc.layers.length+1,doc.frames.length);let n=1;while(doc.layers.some(l=>l.id===`layer-${n}`))n++;const id=`layer-${n}`,planes:Record<string,Uint8Array>={},seen=new Map<Uint8Array,Uint8Array>();for(const f of doc.frames){const old=v.cels[src.id][f.id];if(o.action==='duplicate-layer'){if(!seen.has(old))seen.set(old,new Uint8Array(old));planes[f.id]=seen.get(old)!;}else planes[f.id]=blank(doc);}v.cels[id]=planes;const layer=makeLayer(doc,id,o.action==='duplicate-layer'?src.name.slice(0,70)+' copy':'Indexed layer',true,Object.fromEntries(doc.frames.map(f=>[f.id,new Uint8ClampedArray(0)])),{groupId:src.groupId,opacity:o.action==='duplicate-layer'?src.opacity:255});doc.layers.splice(doc.layers.indexOf(src)+1,0,layer);doc.activeLayerId=id;}

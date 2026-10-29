@@ -4,7 +4,7 @@ import { createDocument, defaultRecipe, validateRaster, quickRecipe, alphaBounds
 import { downloadFile, paintRaster, readImage } from './browser.js';
 import { encodeProject } from './index.js';
 /** Shared local conversion UI for the website and extension. It owns no editor artwork. */
-export function mountConverter(host: HTMLElement, options: { createWorker: () => Worker; onApply: (doc: PixelDocument) => void; applyLabel?: string }) {
+export function mountConverter(host: HTMLElement, options: { createWorker: () => Worker; onApply: (doc: PixelDocument) => void; applyLabel?: string; onEdit?: (doc: PixelDocument) => void }) {
   // This template is authored constant markup. Imported filenames/pixels never enter HTML.
   host.innerHTML = `<div data-focus-host></div><details class="ez-classic-converter"><summary>Full-image conversion</summary><section class="ez-converter">
     <header><div><h2>Turn an image into pixels</h2><p>Local processing. PNG/JPEG: up to 4 megapixels / 20 MiB. BMP/QOI/TGA/PCX: up to 256 pixels per axis / 16 MiB.</p></div></header>
@@ -25,7 +25,8 @@ export function mountConverter(host: HTMLElement, options: { createWorker: () =>
   let sourcePreview:HTMLCanvasElement|null=null,preparedImage:{blob:Blob;name:string}|null=null,imageJob=0;
   function clearImage(){imageJob++;preparedImage=null;q<HTMLButtonElement>('[data-image-download]').disabled=true;q('[data-image-prepared]').textContent='';}
   const status = (text: string) => { q('[data-status]').textContent = text; };
-  const enable = (enabled: boolean) => { for (const key of ['apply','png','project','image-prepare']) q<HTMLButtonElement>(`[data-${key}]`).disabled = !enabled; };
+  const editButton = document.createElement('button'); editButton.textContent='Edit in Pixel studio';editButton.dataset.editConversion='';editButton.disabled=true;editButton.hidden=!options.onEdit;editButton.onclick=()=>{if(result)options.onEdit?.(result);};q('[data-apply]').before(editButton);
+  const enable = (enabled: boolean) => { editButton.disabled=!enabled;for (const key of ['apply','png','project','image-prepare']) q<HTMLButtonElement>(`[data-${key}]`).disabled = !enabled; };
   q('[data-apply]').textContent = options.applyLabel ?? 'Use conversion as new artwork';
   function stop(reset=true) {clearImage();clearTimeout(timer);if(reset||busy){worker?.terminate();worker=null;workerHasSource=false;}busy=false;job++;result=null;enable(false);}
   function sync() {
@@ -102,6 +103,6 @@ export function mountConverter(host: HTMLElement, options: { createWorker: () =>
   q('[data-image-format]').onchange=()=>{clearImage();q('[data-hotspot-fields]').hidden=q<HTMLSelectElement>('[data-image-format]').value!=='cur';};q('[data-hotspot-x]').onchange=clearImage;q('[data-hotspot-y]').onchange=clearImage;q('[data-image-review]').onchange=clearImage;
   q('[data-image-prepare]').onclick=async()=>{if(!result)return;clearImage();if(!q<HTMLInputElement>('[data-image-review]').checked){status('Review image export differences first.');return;}const id=job,imageId=imageJob,document=result,format=q<HTMLSelectElement>('[data-image-format]').value as 'gif'|'bmp'|'qoi'|'svg'|'tga'|'pcx'|'ico'|'cur'|'gray-png'|'indexed-png';try{const files=await exportAssets(document,{...defaultAssetExport(),format,...(format==='cur'?{hotspotX:Number(q<HTMLInputElement>('[data-hotspot-x]').value),hotspotY:Number(q<HTMLInputElement>('[data-hotspot-y]').value)}:{})}),entry=[...files].find(([path])=>path!=='assets.json')!;if(disposed||job!==id||imageId!==imageJob||result!==document||q<HTMLSelectElement>('[data-image-format]').value!==format||!q<HTMLInputElement>('[data-image-review]').checked)return;preparedImage={blob:new Blob([new Uint8Array(entry[1])],{type:format==='svg'?'image/svg+xml':format==='gif'?'image/gif':format==='bmp'?'image/bmp':format==='gray-png'||format==='indexed-png'?'image/png':'application/octet-stream'}),name:'ezpix-converted.'+(format==='gray-png'?'gray.png':format==='indexed-png'?'indexed.png':format)};q('[data-image-prepared]').textContent=preparedImage.name+' / '+preparedImage.blob.size+' bytes';q<HTMLButtonElement>('[data-image-download]').disabled=false;status('Image prepared. Review, then request the download.');}catch(error){if(!disposed&&job===id&&imageId===imageJob)status(error instanceof Error?error.message:'Image export failed.');}};
   q('[data-image-download]').onclick=()=>{if(preparedImage&&q<HTMLInputElement>('[data-image-review]').checked){downloadFile(preparedImage.blob,preparedImage.name);status('Image download requested. Check browser downloads.');}};
-  const focus=mountFocusStudio(q('[data-focus-host]'),{createWorker:options.createWorker,onApply:options.onApply,applyLabel:options.applyLabel,sourceLoaded:r=>load(r)});
-  return { load(raster:Raster,initial?:Recipe){focus.load(raster);if(initial)load(raster,initial);}, dispose() {focus.dispose(); disposed = true; loadId++; stop();if(sourcePreview)sourcePreview.width=sourcePreview.height=0;sourcePreview=null;source=null;recipe=null;host.replaceChildren(); } };
+  const focus=mountFocusStudio(q('[data-focus-host]'),{createWorker:options.createWorker,onApply:options.onApply,onEdit:options.onEdit,applyLabel:options.applyLabel,sourceLoaded:r=>load(r)});
+  return { load(raster:Raster,initial?:Recipe){focus.load(raster);if(initial)load(raster,initial);}, suspend(){focus.suspend();}, dispose() {focus.dispose(); disposed = true; loadId++; stop();if(sourcePreview)sourcePreview.width=sourcePreview.height=0;sourcePreview=null;source=null;recipe=null;host.replaceChildren(); } };
 }

@@ -1,4 +1,4 @@
-# @ezpix/core 0.298.0
+# @ezpix/core 0.461.0
 
 Original deterministic RGBA editor and image conversion engine. No runtime
 dependencies or inference. Build with the workspace `npm run build`.
@@ -1746,3 +1746,387 @@ See the website [issues3 contract](../../../glitchbong/docs/ezpix-issues3-plan.m
 Shape outlines accept brush size/tip; indexed shape operations mirror that width.
 Jumble samples existing neighbouring RGBA with a deterministic seed.
 `PixelEditor.reorderFrame(from,to)` moves a frame in one structural Undo operation.
+
+## Sparse tiled layers and animation (phases 309-328)
+
+The separate `ezpix-tiled` writer is v2; v1 files migrate to one layer/frame.
+Dense project writer/readers stay v16/v1-v16. Tiled projects use 1-10240 axes,
+1-8 normal RGBA layers and 1-32 timed frames (20-5000ms). No indexed/live masks,
+text/effects, tags or direct oversized native format promise is added.
+
+Each layer owns same-layer cel maps and an implicit RGBA background rectangle.
+Raw tile pixels override that background, including transparent holes/hidden RGB.
+Geometry clips/translates this rectangle so padding is transparent without
+materializing an enormous background. A blank/cleared cel inherits its layer's
+implicit background. Additional layers begin transparent. Cel links share a map;
+independent copies clone maps and share immutable tile bytes until first write.
+Duplicate layers retain their internal link classes but never link to the source.
+
+`LargeCanvasEditor` provides layer/frame properties/creation/deletion/reorder,
+link/unlink/clear, connected bounded strokes, selection capture/prepare/apply,
+local RGBA placement, geometry and Undo/Redo. `largeLayer`, `largeAllocation`,
+`largeCompositeTile` and `largePixel` are read helpers. One gesture/structural
+operation is atomic, budget failures and cancel roll back, no-op retains Redo,
+and default tiles compact away. Hidden/locked layers reject artwork changes;
+canvas geometry is explicitly document-wide. Layer attributes remain editable.
+
+Storage: 1024 distinct 64-square RGBA buffers / 16 MiB, 8192 tile references across
+independent cel maps, and 24 MiB encoded projects. Linked maps count once per layer.
+The v2 file has a shared tile byte table and explicit prior-frame cel links;
+decoding checks references/structure before decoding bytes. Structural/history
+snapshots share immutable buffers; Undo+Redo+current retain at most 32 MiB of unique
+tile bytes and at most 32 commands, plus bounded metadata/maps. Existing history
+is evicted only on a successful changed operation. Transient planning/encoding,
+clipboard, image and browser buffers are additional; this is not measured total
+peak heap, physical-device responsiveness, RAM/VRAM or endurance evidence.
+
+Rectangular capture/placement is at most one megapixel / 4 MiB. Selection plans
+keep private source/settings and an encoded source fingerprint; changing public
+preview pixels cannot inject artwork, forged or stale plans reject. Move/copy/
+flip replaces whole RGBA rectangles; moving clears source to zero RGBA. Fill,
+clear and inner-stroke share the same staged transaction. Local clipboard is
+session-only; there is no system clipboard permission. Stroke work is capped
+at four megapixel brush visits per call, 41000 shape/path points and size 1-64.
+
+`exportLargePng` snapshots the selected frame and composites normal layers with
+straight source-over and per-layer opacity, rounded once. Fully transparent
+composites normalize hidden RGB. It streams scanlines with a 64-row tile cache
+(at most 160 tiles / 2.5 MiB) and a 24 MiB compressed-output guard; no 400 MiB
+full-canvas RGBA plane is allocated. `exportLargeFrames` returns PNGs plus exact
+frame durations in animation.json, capped at 16 megapixels across frames,
+15 MiB PNG payload and the existing 16 MiB ZIP bound. This is a numbered PNG
+sequence, not GIF/APNG/video or native cel metadata exchange.
+
+`largeToDocument` materializes supported normal RGBA layers/frames/links/opacity/
+locks only when dimensions <=256 and the existing dense cel budget permits it;
+the normal editor then offers its reviewed native/animation export families.
+`largeFromDocument` is a reviewed flattening conversion of visible composites,
+retaining frame durations/active frame, while omitting source/references/tags/
+indexed identity/live structure. It never changes the input dense document.
+
+The website adds all-layer/frame controls, a cel grid, view-only timed playback,
+staged selection/image/geometry review, local copy/paste, and a separate
+`ezpix-tiled-recovery` IndexedDB/checkpoint writer lock. Restore/keep are explicit,
+checkpoint replacement is atomic, and history is not serialized. Dense recovery,
+Focus/SnapForge and their data/permissions remain independent.
+
+
+## Tiled transient selections (phases 329-348)
+
+`large-mask` supplies validated binary membership within one bounded rectangle
+(up to 1,048,576 bytes), rectangle/ellipse/diamond/polygon shapes, raw selected-layer
+RGBA wand with four/eight/global matching, algebra, four-neighbour morphology,
+components and hole filling. Polygon/lasso accepts 3-256 integer local vertices
+and at most 32 million edge visits. Morphology radius and masked inner stroke
+are 1-16; grow clips to the window. Wand tolerance compares all four raw channels,
+including hidden RGB and alpha; it does not sample the visible composite.
+
+`LargeCanvasEditor.selection` owns a separate 16-command history and four private
+session slots. Current/history/slots retain at most 21 one-megapixel byte planes;
+getters return copies. Artwork, clipboard, temporary planes, encoding and flood
+queues are additional allocations. This is not measured peak heap. Selection is
+not serialized into tiled v2, recovery, PNG or the dense bridge. Geometry changes
+clear website membership; selection undo can recall prior bounds, which must be
+inside the current canvas before editing.
+
+`prepareMasked`, `copyMasked` and `preparePaste` snapshot private mask/settings/
+pixels. All prepared selection edits reject subsequent membership revisions,
+project/layer/frame changes and forged plans. Public preview/clipboard bytes do
+not control Apply. Selected source members alone clear on move; transformed
+members replace destination RGBA while holes preserve destination artwork. Source
+capture precedes overlapping writes. Clear/fill/inner stroke and paste use one
+linked artwork Undo; no-op retains Redo. Membership stays at its source coordinates
+after transforms. Local image placement retains full-rectangle replacement.
+
+`encodeLargeMask` / `decodeLargeMask` exchange `.ezmask` JSON, kind
+`ezpix-selection`, version 1, absolute rectangle and alternating zero/one run
+lengths starting with zero. Input is capped at 3 MiB, total runs must exactly
+match the validated window, only the first run may be zero. No artwork, source
+media or project name is included. This is binary selection exchange, not PNG,
+persistent layer masks, soft coverage or native-editor mask compatibility.
+
+
+## Tiled transforms and PNG membership (phases 349-368)
+
+`largeWarpRaster` transforms a bounded mask and raw RGBA together using nearest
+pixel-centre sampling. `turn` performs 0/1/2/3 clockwise quarter turns, then
+nonuniform output scaling; flips occur on output axes after sampling geometry.
+`rotate` accepts -360..360 degrees and expands translated corner bounds; `shear`
+accepts X/Y factors -4..4 with invertible matrices. `perspective` accepts four
+convex corners in source-corner order inside an explicit output window, rejecting
+self-intersection, degeneracy and projective horizons. Source/output windows each
+stay at one megapixel and 10240px axes. There is no smoothing or colour inference.
+
+`LargeCanvasEditor.prepareWarp` snapshots source/membership/settings into a private
+plan and probes allocation limits before returning. The public output pixels,
+membership, destination layer context and bounds are review data; mutations do
+not affect Apply. Source moves clear original members before placing captured
+output members, preserving destination holes and linked atomic Undo. Clipboard
+transforms always copy. Artwork plans invalidate on content, layer/frame, lock or
+membership revision changes. Empty/identity operations preserve Redo.
+
+`adoptWarpSelection` explicitly installs private output membership, either as a
+selection-only action before artwork Apply (invalidating that pending plan), or
+after successful Apply at its recorded state. Selection history remains separate;
+artwork Undo does not restore membership. The website defaults to retaining source
+membership and offers an opt-in adoption checkbox. `prepareCut` stages clear and
+a private clipboard snapshot; the website updates its clipboard only on successful
+Apply. Cancel retains both; artwork Undo does not erase the local clipboard.
+
+`exportLargeMaskPng` writes opaque RGBA black/white, at most one megapixel.
+`importLargeMaskPng` snapshots input bytes, limits files to 5 MiB and requires exact
+supplied window dimensions and opaque binary pixels using the existing strict
+8-bit, noninterlaced PNG subset (including supported RGB/gray/indexed inputs).
+No thresholding, colour-profile conversion or automatic resizing. PNG carries
+membership dimensions, not its canvas origin; placement uses the current window.
+JSON `.ezmask` remains the absolute-bounds exchange. Neither persists layer masks.
+
+Transform planning retains private source/output masks, output RGBA and public
+output/membership/context plus a sparse probe. Each dense plane is bounded by the
+one-megapixel contract (RGBA at most 4 MiB, membership at most 1 MiB); temporary
+planes and existing project/history storage are additional. This is not a measured
+peak-process-memory or minimum-hardware certificate. Tiled v2 and dense v16 schemas,
+16 MiB tile storage, 8192 references, 24 MiB project files and all release gates stay.
+
+
+## Persistent tiled layer masks (369-388)
+
+The phases 369-388 writer was v3 (readers v1-v3); v4 below supersedes that writer. Optional per-layer `mask` holds enabled state, an
+outside coverage byte, absolute bounded rectangle and 8-bit coverage plane.
+Each window is at most one megapixel; at most eight layers imply at most 8 MiB
+current mask planes. A static mask applies across every frame of its layer.
+Selection membership stays transient and separate. Coverage scales encoded-alpha
+before normal source-over and layer opacity; raw artwork bytes are unchanged.
+Projects serialize mask coverage as canonical base64, validate input bounds and
+24 MiB total file size. Mask-enabled v3 files require the matching new reader.
+
+Mask edits are private staged plans with explicit Apply/Cancel, whole-project and
+selection-revision stale checks, one artwork Undo and no-op Redo retention.
+History counts distinct coverage buffers along with tile buffers inside the same
+32 MiB retained-byte cap. Non-mask actions share immutable mask planes; edits
+replace them. Independent layer copies retain separate mask metadata and edits.
+Reveal/hide derives binary coverage from selection; invert, uniform/outside,
+enable/remove, bounded local strokes and separable box feather (radius 1-16) are
+supported. Stroke work caps at four megapixel tip visits and 4096 input points.
+Geometry translates/clips mask windows; wholly clipped masks become a uniform
+outside-coverage representation. Pixel stroke edits still target raw artwork.
+
+Opaque grayscale mask PNG exchange keeps every byte, requires exact window
+sizes and <=5 MiB input. PNG omits canvas origin/outside/enabled metadata; native
+v3 projects keep all three. Mask bake changes all unique cels, retains linked
+identity and raw RGB, rounds alpha to a byte, then removes the mask as one Undo;
+work caps at four megapixels across independent cel planes. Rounding may change
+compositing by a byte. Dense bridging requires explicit baking/drop review for saved
+masks, within existing dense budgets. Current export/recovery resolve v4 frame masks as described below.
+Current storage caps, temporary allocation caveats and external release gates stay.
+
+
+## Soft-mask authoring and portable coverage (389-408)
+
+`authorLayerMask` adds local linear/radial gradients, square grow/shrink radius
+1-16 (outside-padded, clipped to its window), levels/gamma (0.1-5), inclusive
+threshold, coverage min/max/multiply/subtract, and nearest-neighbour transforms.
+Gradient endpoints are local pixel centres; outside coverage stays unchanged.
+Tonal and combine operations also update the outside byte. Combinations use the
+union rectangle, capped at one megapixel, and mathematical outside coverage.
+Disabled data can still be edited; the enabled flag is retained.
+
+Coverage transforms share quarter-turn/scale/output-flip and inverse affine/
+perspective sampling. They relocate/replace the saved window; the old window
+returns to outside coverage. Geometric output holes use outside coverage. All
+input coverage bytes, including zero, are sampled; this is separate from artwork
+Copy/Move. `layerMaskSelection` thresholds only the bounded window into transient
+binary membership and has separate selection history. Plans show future enabled,
+outside and origin metadata, while retaining private Apply bytes.
+
+`LayerMaskLibrary` owns four copied session slots, at most 4 MiB retained coverage,
+additional to project/history storage. Store/clear are session operations; recall
+is a staged project-mask replacement with one artwork Undo. A new editor clears
+these slots. They are not checkpoint/project metadata.
+
+`encodeLayerMask` / `decodeLayerMask` exchange `.ezcoverage` JSON kind
+`ezpix-layer-mask`, version 1, enabled/outside/absolute rect and canonical base64
+coverage. Input <=2 MiB; at most one megapixel and 10240px axes. No artwork/source
+media. Grayscale PNG still omits origin/outside/enabled metadata: website import
+uses the current mask window/outside with explicit replace/min/max/multiply/
+subtract policy and reviewed output. At phase 408, the native project/recovery writer was v3;
+dense writer stays v16. All previous resource and external-release gates remain.
+
+
+## Tiled v4 mask animation (phases 409-438)
+
+Writer v4 reads v1-v4. Existing static `layer.mask` data remains static on migration.
+An optional `maskCels` record replaces it only through explicit animation review.
+Every frame owns an explicit mask or null (unmasked); non-null object identity links
+mask cels within a layer. Artwork maps and mask links are independent. No cross-layer
+mask links are authored. `largeFrameMask` is the authoritative frame lookup.
+
+`prepareMaskTimeline` stages enable/static conversion, link/unlink, selected-frame
+copy to a range (independent or linked), clear range, advanced coverage edits on a
+range and baked duration-weighted tween. Ranges are inclusive zero-based indices
+in current frame order. Range edits preserve links inside the range and split links
+outside it. Copy uses the selected mask, including unmasked. Tween needs at least
+three frames, matching endpoint windows/enabled flags, preserves endpoints and
+replaces intermediate cels using start-time weights (sum of preceding durations,
+excluding the final frame duration). It interpolates bytes/outside with nearest
+rounding; it does not add live keyframes. Static conversion retains selected-frame
+coverage only and reviews discarded variations.
+
+Ordinary `prepareLayerMask` affects a static mask or the selected animated mask and
+its linked mask cels. Bake covers the entire selected layer, removes all saved masks
+and splits raw cel links by effective mask identity where needed. Work is limited to
+four megapixels across enabled cel/mask pairs; disabled/unmasked pairs need no scan.
+Raw RGB, including hidden RGB, survives alpha baking; alpha quantization may change
+multilayer composite rounding by one byte. Dense bridge requires explicit review,
+uses the same pair separation and retains its existing dense limits.
+
+Blank frames have null mask cels; duplicates copy independently (immutable coverage
+buffers can be shared until edited). Layer duplicate preserves internal links and
+copies ownership. Delete/reorder and all-frame geometry retain valid frame references
+and mask link classes. Codec emits backward links in current frame order, explicit
+nulls and canonical mask metadata/base64; it rejects forward/dangling/mixed-mode
+references and rejects aggregate decoded coverage before allocating beyond 8 MiB.
+
+One mask window remains at most 1,048,576 bytes. Current logical coverage is at most
+8 MiB across unique mask cels, with at most 256 frame references; logical allocation
+counts independent cels separately even if immutable byte arrays share storage.
+Actual distinct retained coverage/tile buffers count against the existing 32 MiB /
+32-command history bound. Project JSON remains 24 MiB; tiles remain 16 MiB / 8192
+references. Preview clones, encoding strings, selection and session libraries add
+temporary memory; these limits are not a measured peak heap guarantee.
+
+Plans hold private snapshots with whole-project/selection staleness checks, explicit
+Apply/Cancel and one atomic artwork Undo. Rendering, frame PNG/ZIP and separate local
+recovery resolve the requested frame. PNG and portable coverage exchange affect
+selected mask links. Indexed/live/text/native large-workspace integration and all
+physical/human/release gates remain separate.
+
+
+## Sparse indexed authoring (439-468)
+
+Tiled writer v5 reads v1-v5; older versions remain RGBA. Optional `indexed` stores
+1-256 exact RGBA palette entries plus a designated zero-alpha transparent slot.
+Unused entries, duplicate colours and hidden RGB in zero-alpha entries persist.
+Indexed layers use `backgroundIndex` inside their background bounds and the
+transparent slot outside; their RGBA background must be zero. RGBA projects reject
+index backgrounds. Tiles remain clamped byte arrays but indexed tiles contain
+4096 slot bytes (64x64), versus 16384 RGBA bytes. Invalid slots, mixed storage,
+noncanonical base64 and legacy mode injection reject. The 1024-tile/8192-reference
+cap yields 4 MiB indexed or 16 MiB RGBA current raw storage. History counts actual
+distinct tile/coverage bytes under its 32 MiB/32-command cap; metadata, previews,
+encoding, selections and session libraries add memory outside that accounting.
+
+`createLargeIndexed`, `largeRawIndex`, `largeIndexColor`, `largeBackground`,
+`captureIndices` and `largeIndexWand` expose explicit mode-aware reads. Exact wand
+supports four/eight/global membership inside one megapixel; equal RGBA colours
+in different slots remain distinct and no colour tolerance is applied.
+
+`strokeIndex` supplies square 1-64px slot tips, bounded to four megapixels of tip
+work, with gesture commit/cancel and copy-on-write tiles. Existing shape points
+feed that API. `prepareIndexed` stages bounded rectangle/membership fill, clear to
+the transparent role, and 1-16px inner stroke; holes retain destination slots.
+Saved coverage remains separate and composes after palette alpha. Linked cels,
+independent duplicates, layers, frames, all-frame nearest geometry and recovery
+retain slot identity. Blank frames reset overrides to the layer background.
+
+Palette set/append/duplicate, unused non-transparent removal, complete permutation
+and implicit background changes are reviewed. Permutation remaps palette, tile,
+background and transparent-role references to preserve appearance. Removal rejects
+any raw use, including background/padded tile bytes; remaining slot references
+shift. Background changes affect implicit pixels only: existing allocated tiles
+retain their raw slot values. Global palette/mode changes require unlocked layers.
+
+Exact RGBA-to-indexed conversion scans sparse raw tiles/backgrounds in deterministic
+order with transparent RGBA zero first; more than 256 raw RGBA entries reject with
+no quantization. Masks, layers, frames and raw links persist. Indexed-to-RGBA
+resolves raw slots and retains masks/links but loses duplicate/unused slot identity.
+These changes are private snapshot plans with Apply/Cancel, whole-project and
+selection staleness checks, no-op Redo and one artwork Undo. Dense bridge requires
+explicit reviewed RGBA conversion/baking within existing dense limits.
+
+PNG/frame ZIP render visible RGBA with palette alpha and per-frame coverage, not
+raw indexed PNG identity. Indexed artwork transforms, cut/copy/paste, RGBA image
+placement and alpha-mask bake reject until reviewed conversion to RGBA; coverage
+transforms themselves remain supported. Direct raw indexed PNG/native exchange,
+slot-safe artwork transforms/clipboard and richer indexed ink policies remain
+separate work. No live layers/text/native large-workspace parity is implied.
+
+RGBA conversion rejects nonzero hidden RGB in implicit transparent padding that the
+RGBA sparse model cannot represent; keep indexed storage or use the reviewed dense
+bridge within its materialized bounds. No hidden padding RGB is silently discarded.
+
+
+## Issues-4 shared controls (0.459.0)
+
+Eight original palette collections are exported as PALETTE_PRESETS and supported
+by conversion recipes, editor swatches and Focus studio. Original/adaptive
+remain available. New recipe palette values require this engine version.
+Spray options accept optional spraySoftness and sprayColorMix integers 0-100;
+omitted values retain legacy bytes. Softness tapers density and alpha by radial
+distance. Colour mix interpolates primary to secondary RGB toward the edge.
+The same seed/path/settings remain deterministic; source and linked-cel/Undo
+contracts remain unchanged. This is dense RGBA brush support, not new sparse
+indexed spray parity. See the issues-4 tests and current numbered handoff.
+
+
+## Sparse indexed transforms and clipboard (481-500, 0.460.0)
+
+prepareWarp now samples raw index bytes with exactly the same nearest-coordinate
+kernel as RGBA. Quarter turns, scale, output flips, arbitrary angle, signed shear
+and convex perspective preserve duplicate/unused palette entries and selected
+zero-alpha slots. Output holes preserve the destination; moving clears every
+original member to the designated transparent slot before replacing destination
+members from a private pre-edit capture. Linked cels edit together; independent
+copies retain COW buffers. Saved coverage stays at its existing frame/location.
+Plans remain private, source/frame/layer/palette/selection/lock bound, atomic and
+undoable. Output-membership adoption is explicit and uses separate selection
+history. A source rectangle can be passed as the third prepareWarp argument;
+it creates no persistent selection. Indexed prepare/prepareMasked transforms
+use this kernel. RGBA fill/placement calls still reject indexed storage.
+
+copyMasked/copyRect snapshot membership, raw slots and the complete ordered table
+including hidden RGB, duplicate and unused entries and transparent role. Readonly
+metadata and defensive getters expose display RGBA and copied slot/membership
+planes, never the backing snapshot. Clipboard paste always copies; it cannot
+clear an unrelated source. Cross-document paste requires identical colour mode,
+ordered palette and transparent role, with no implicit remapping/quantization.
+Cut returns a private clipboard and a separate staged clear plan. A no-op cut
+can update a UI clipboard without adding artwork history or discarding Redo.
+
+encodeLargeClipboard/decodeLargeClipboard exchange strict version-1
+`ezpix-tiled-clipboard` JSON in .ezclipboard files. One-megapixel windows, 10240px
+axes and an 8 MiB encoded limit apply. RGBA and indexed planes have exact lengths,
+canonical base64 and explicit binary membership; holes contain zero RGBA or the
+transparent slot. Full table binding is validated at paste preparation. This is
+an explicit local file, not OS clipboard access or raw indexed PNG/native exchange.
+Raw tile/history/project budgets and dense v16/tiled v5 remain unchanged. Preview,
+clipboard and encoding copies add memory beyond retained-artwork accounting.
+
+
+## Extension-first completion pass, 0.461.0
+
+The packaged Chrome extension includes an offline manual Pixel studio using
+PixelEditor and the shared authored/indexed plans: drawing, rectangle selection
+move/copy/nearest scale/quarter turns/flips, reviewed all-frame canvas geometry,
+layers, timed frames, Undo/Redo and file exchange. The converter and Focus studio
+accept an optional onEdit callback; suspending their capture UI stops camera tracks.
+Indexed delete-layer is an authored operation that removes both the layer and its
+raw planes in one Undo. Dense v16 and tiled v5 schemas are unchanged.
+
+RawIndexedRaster / encodeRawIndexedPng / decodeRawIndexedPng retain complete ordered
+RGBA tables and raw index bytes, including duplicates, unused entries, multiple
+zero-alpha slots, partial alpha and hidden RGB. Non-interlaced 8-bit palette PNG
+only; 1-10240px axes, at most 1,048,576 pixels and a 5 MiB file. The shared strict
+PNG parser validates CRC/order/filter/slot/bounded-inflation rules and rejects
+animation, custom profiles, packed/interlaced and unsupported chunks. Existing
+dense IndexedCel PNG wrappers retain their stricter 256px / 128 KiB / single-clear
+policy, and share the raw writer without relaxing dense document validation.
+
+captureLargeIndexedPng exports the selected raw-layer/frame rectangle. It does
+not bake layer opacity, visibility, other layers, selection holes or saved coverage.
+PNG omits location, animation, links and the editor clear role. largeFromIndexedPng
+creates a separate one-layer/frame sparse project. The caller must explicitly
+choose an existing zero-alpha slot, or append one unused transparent slot while
+retaining every original slot. An opaque full 256-slot table cannot fit the sparse
+editor's required clear role. No palette matching, quantization or RGBA remapping
+occurs. Project save/reopen preserves the chosen role and all original raw slots.

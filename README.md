@@ -1,14 +1,33 @@
 # EzPix by GlitchBong
 
 Local Chrome capture companion and authoritative deterministic pixel-art core.
-Current core/extension **0.298.0**, project writer **v16**, readers **v1-v16**.
+Current core/extension **0.461.0**, project writer **v16**, readers **v1-v16**.
 The website lives in sibling `glitchbong` on branch `ezpix`; this repository uses
 `main`. No runtime AI, model, account or image upload is required.
+
+## Extension-first local release
+
+The extension now contains an offline manual Pixel studio as well as capture and
+conversion. Open Pixel studio from the toolbar to draw, transform selections,
+edit layers/frames and download editable projects without opening the website.
+Imports/recovery require review. Local recovery is opt-in per studio tab.
+
+Run `npm run release:local` for the complete reproducible local gate: core/protocol
+tests, packaged website sync, production website build/lint/routes, production ZIP,
+real offline studio and capture/handoff browsers, raw indexed PNG website files,
+independent pixel/ZIP readers and package integrity. Reports/logs stay under
+`artifacts/studio-release/`. No commit, deployment or store submission occurs.
+`EZPIX_CHROMIUM_PATH` can select an installed extension-capable Chromium.
+
+Current implementation and exact unclosed work:
+[completion pass](../glitchbong/docs/ezpix-release-local.md).
+Fixed small phase batches are no longer the delivery schedule. The remaining
+advanced roadmap and external gates are retained, without claiming full parity.
 
 ## Essential references
 
 - [current SnapForge/workspace follow-up](../glitchbong/docs/ezpix-snapforge-local.md).
-- [last numbered handoff](../glitchbong/docs/ezpix-continue308.md).
+- [last numbered handoff](../glitchbong/docs/ezpix-continue500.md).
 - [Product specification](../glitchbong/docs/ezpix-spec.md) and [full roadmap](../glitchbong/docs/ezpix-rework-plan.md).
 - [Shared core API, file and numerical contracts](packages/core/README.md).
 - [Extension architecture and transfer rules](docs/extension-plan.md).
@@ -44,6 +63,9 @@ Website builds/runtime never import sibling source. The package/lock, installed
 core, extension builds and provenance must agree before transfer testing.
 
 ## Local verification
+
+Use `npm run release:local` for the current candidate. The phase-specific commands
+below are historical reproductions; older UI scripts may need their dated layouts.
 
 After a configured website production build, run browser scripts sequentially:
 
@@ -149,7 +171,7 @@ See current handoff for exact arithmetic, measured gates and remaining work.
 Phases 13ck-13cy add searchable configurable commands, staged numeric geometry,
 RGBA gradients/contours/shadows/alpha morphology, multi-target cel edits, range
 retiming/sequencing and expanded display-only onion skins. Exact scope and all
-local validation are in [current handoff](../glitchbong/docs/ezpix-continue308.md). The remaining
+local validation are in [current handoff](../glitchbong/docs/ezpix-continue468.md). The remaining
 feature and physical/hosted/store gates remain explicit; this is uncommitted local
 implementation. No AI/upload or permission expansion was introduced.
 
@@ -581,7 +603,7 @@ transparent painting, and four/eight/global exact-slot fill. Shared paths retain
 spacing/stabilization/pixel-perfect, clipping/wrapping/mirrors, alpha lock,
 private settings, preview Apply/Cancel, stale rejection and one linked atomic
 Undo. Brush settings/stamps are session tools, not new project schema fields.
-See [current handoff](../glitchbong/docs/ezpix-continue308.md) for exact measured evidence.
+See [current handoff](../glitchbong/docs/ezpix-continue468.md) for exact measured evidence.
 
 The [full feature inventory and completion estimate](../glitchbong/docs/ezpix-completion-inventory.md) replaces the
 old broad-family phase allowance with a named **60-98** further bounded-phase
@@ -593,9 +615,18 @@ runtime dependencies, permissions, AI, image uploads or telemetry are added.
 No commit, push, deployment or publication is part of this continuation.
 
 Current phases 295-298: indexed pressure size and discrete density; see the
-[current handoff](../glitchbong/docs/ezpix-continue308.md). No extension permission/protocol expansion.
+[current handoff](../glitchbong/docs/ezpix-continue468.md). No extension permission/protocol expansion.
 Physical stylus and all separate release gates remain open.
 
 Current phases 299-308 add reviewed Aseprite rendered RGBA import; see the
-[current handoff](../glitchbong/docs/ezpix-continue308.md). Strict editable import remains separate. No transfer
+[current handoff](../glitchbong/docs/ezpix-continue468.md). Strict editable import remains separate. No transfer
 protocol/permission expansion. Physical, external-app and release gates remain.
+
+## Sparse authoring continuation 309-328
+
+Current [20-phase handoff](../glitchbong/docs/ezpix-continue468.md) records
+sparse tiled v2 layers/frames, links, bounded edits, separate recovery, PNG/frame
+ZIP and reviewed dense bridge. Dense writer v16 and SnapForge capture/privacy/
+permissions remain unchanged. Earlier single-surface v1 descriptions are historical;
+v1 files migrate. Full indexed/live/native large-canvas parity and all physical/
+human/performance/hosted/store gates remain open. No new commit or publication.

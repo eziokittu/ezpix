@@ -1,9 +1,30 @@
 # EzPix Chrome companion architecture
 
-Current: core/extension **0.298.0**, project v16 writer / v1-v16 readers.
-Read [current handoff](../../glitchbong/docs/ezpix-continue308.md),
+Current: core/extension **0.461.0**, dense v16 writer / v1-v16 readers; tiled v5 writer / v1-v5 readers.
+Read [current handoff](../../glitchbong/docs/ezpix-continue500.md),
 [product spec](../../glitchbong/docs/ezpix-spec.md) and [core reference](../packages/core/README.md).
 Website UI belongs to sibling `glitchbong` on `ezpix`; this repository uses `main`.
+
+## Offline Pixel studio
+
+The toolbar opens a packaged manual editor at app.html#studio. It uses the shared
+PixelEditor engine and indexed authored plans, with no website dependency:
+pencil/eraser/fill/pick/shapes, selection transform previews, all-frame canvas
+resize/crop/scale/rotate/flip/trim, editable layers and timed frames, exact indexed
+slots, Undo/Redo and reviewed project/image/Aseprite/Piskel imports. Downloads
+include EzPix, PNG/APNG/GIF, atlas/frame ZIP and bounded Aseprite.
+
+Conversion has a separate Edit in Pixel studio action with Apply/Cancel replacement.
+Switching away from capture stops camera/screen tracks. Original sources are
+excluded from manual studio project downloads/handoffs/recovery. Capture Clear
+preserves manual art; local draft deletion has its own reviewed action.
+
+Recovery is opt-in per open studio tab: independent random draft IDs, at most four
+recent records / 8 MiB total / seven days, validated before storage and reviewed
+before restore. Another tab cannot overwrite this tab's ID. Expiry runs on wake;
+browser storage is not a file backup. Undo and conversion source images are omitted;
+references remain. Delete saved drafts pauses this tab; other active opted-in tabs
+may save again. Appearance preferences remain separate.
 
 ## Capture and local conversion
 
@@ -64,11 +85,12 @@ vendor tarball with lock/provenance agreement, never sibling source imports.
 Both variants keep identical minimal permissions. Browser preferences/themes
 are local and independent; both expose Light/Dark/System.
 
-`phase23-e2e` verifies real toolbar activeTab capture, fixture pixels, wrong-tab/
-token rejection, worker restart, transfer/ACK, import cancellation/preservation,
-configured discovery and all destinations on the rebuilt package. Keep isolated
-harness evidence separate from the production website. Current tests, artifact
-locations and sequential reproduction are in the handoff. Additional capture,
+`studio-handoff-qa` verifies current Focus/manual studio toolbar activeTab
+capture, exact fixture pixels, wrong-tab/token rejection, actual worker restart,
+transfer/ACK and import cancellation/preservation for new-document handoffs on
+the rebuilt package. Other destinations retain their existing core/protocol and
+historical UI coverage; this suite does not claim to requalify every destination.
+Current tests, artifact locations and reproduction are in the handoff. Additional capture,
 soak and isolated-install scripts remain available; prior five-minute stress
 runs do not establish endurance or minimum-device latency.
 
@@ -366,7 +388,7 @@ portable/device authored-project library and multi-document asset ZIPs. Restorin
 workspace files/checkpoints starts empty histories; ordinary File import still
 replaces the active tab. Original issue inputs, minimal companion permissions and
 local deterministic processing remain unchanged. See the
-[current handoff](../../glitchbong/docs/ezpix-continue308.md) for exact limits and evidence. Physical devices,
+[current handoff](../../glitchbong/docs/ezpix-continue468.md) for exact limits and evidence. Physical devices,
 Firefox/Safari, human external-app/engine use, endurance/true peak memory/minimum
 hardware, licence/name and hosted/offline/update/store gates remain open.
 
@@ -613,7 +635,7 @@ transparent painting, and four/eight/global exact-slot fill. Shared paths retain
 spacing/stabilization/pixel-perfect, clipping/wrapping/mirrors, alpha lock,
 private settings, preview Apply/Cancel, stale rejection and one linked atomic
 Undo. Brush settings/stamps are session tools, not new project schema fields.
-See [current handoff](../../glitchbong/docs/ezpix-continue308.md) for exact measured evidence.
+See [current handoff](../../glitchbong/docs/ezpix-continue468.md) for exact measured evidence.
 
 The [full feature inventory and completion estimate](../../glitchbong/docs/ezpix-completion-inventory.md) replaces the
 old broad-family phase allowance with a named **60-98** further bounded-phase
@@ -625,11 +647,20 @@ runtime dependencies, permissions, AI, image uploads or telemetry are added.
 No commit, push, deployment or publication is part of this continuation.
 
 Current phases 295-298: indexed pressure size and discrete density; see the
-[current handoff](../../glitchbong/docs/ezpix-continue308.md). No extension permission/protocol expansion.
+[current handoff](../../glitchbong/docs/ezpix-continue468.md). No extension permission/protocol expansion.
 Physical stylus and all separate release gates remain open.
 
 Current phases 299-308 add reviewed Aseprite rendered RGBA import; see the
-[current handoff](../../glitchbong/docs/ezpix-continue308.md). Strict editable import remains separate. No transfer
+[current handoff](../../glitchbong/docs/ezpix-continue468.md). Strict editable import remains separate. No transfer
 protocol/permission expansion. Physical, external-app and release gates remain.
 
 Focus studio now leads the local companion: explicit object box/outline, camera still capture and bounded recorded-video conversion. See [issues3 local handoff](../../glitchbong/docs/ezpix-issues3-local.md). Permissions stay activeTab, scripting and alarms.
+
+## Sparse authoring continuation 309-328
+
+Current [20-phase handoff](../../glitchbong/docs/ezpix-continue468.md) records
+sparse tiled v2 layers/frames, links, bounded edits, separate recovery, PNG/frame
+ZIP and reviewed dense bridge. Dense writer v16 and SnapForge capture/privacy/
+permissions remain unchanged. Earlier single-surface v1 descriptions are historical;
+v1 files migrate. Full indexed/live/native large-canvas parity and all physical/
+human/performance/hosted/store gates remain open. No new commit or publication.

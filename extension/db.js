@@ -16,6 +16,13 @@ export async function state(key, value = undefined) {
 }
 export async function purgeExpired(now=Date.now()) {
   for (const key of ['capture','transfer','selection']) await updateState(key,item=>item&&item.expires<=now?null:item);
+  // Manual-studio recovery is a separate, opt-in seven-day policy. Purge on wake,
+  // without decoding artwork or allowing damaged recovery to block page capture.
+  await updateState('studioDrafts',items=>{
+    if(!Array.isArray(items))return items;
+    const retained=items.filter(item=>item&&Number.isSafeInteger(item.updated)&&now-item.updated<=7*24*60*60*1000);
+    return retained.length===items.length?items:retained.length?retained:null;
+  });
 }
 /** Conditional mutation inside one transaction prevents old ACK/expiry races. */
 export async function updateState(key, update) {

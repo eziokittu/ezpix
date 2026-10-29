@@ -1,7 +1,18 @@
+# Current local release verification
+
+Version 0.461.0. See [the completion pass](../../glitchbong/docs/ezpix-release-local.md)
+and `artifacts/studio-release/local-release-result.json` for executed current checks.
+Run `npm run release:local` to regenerate the evidence. Older evidence below is
+historical and does not establish the current build's release readiness.
+
+Offline studio recovery, private/stale reviews, actual project/PNG/APNG/GIF/ZIP/
+Aseprite downloads, indexed raw slots and minimal permissions are local gates.
+The physical, hosted, actual-ID update, licence and store gates below remain open.
+
 # EzPix remaining release verification worksheet
 
 Current local evidence is in
-[current local rework](../../glitchbong/docs/ezpix-issues3-local.md). This worksheet records
+[current handoff 468](../../glitchbong/docs/ezpix-continue468.md). This worksheet records
 remaining manual gates; its presence does not mean any row passed. Use original
 fixtures, keep captures local, and record actual hardware, OS/browser versions,
 date, result and artifact location for each run. Never attach personal artwork,
@@ -199,7 +210,7 @@ Current core/companion 0.133.0 retains v10 writing/v1-v10 reading and identical
 activeTab/scripting/alarms permissions. Command discovery/configuration, thirteen
 staged raster/cel/timeline families and display-only expanded onion skins are
 implemented. Local evidence and reproducible commands are consolidated in
-[current local rework](../../glitchbong/docs/ezpix-issues3-local.md). Numeric geometry controls are
+[current handoff 438](../../glitchbong/docs/ezpix-continue438.md). Numeric geometry controls are
 not canvas transform handles, text/fonts, live effects or document mode support.
 All physical devices/stylus, other browsers, external human application/engine
 roundtrips, endurance, actual peak memory, minimum hardware, licensing/name,
@@ -439,7 +450,7 @@ portable/device authored-project library and multi-document asset ZIPs. Restorin
 workspace files/checkpoints starts empty histories; ordinary File import still
 replaces the active tab. Original issue inputs, minimal companion permissions and
 local deterministic processing remain unchanged. See the
-[current local rework](../../glitchbong/docs/ezpix-issues3-local.md) for exact limits and evidence. Physical devices,
+[current handoff 438](../../glitchbong/docs/ezpix-continue438.md) for exact limits and evidence. Physical devices,
 Firefox/Safari, human external-app/engine use, endurance/true peak memory/minimum
 hardware, licence/name and hosted/offline/update/store gates remain open.
 
@@ -671,7 +682,7 @@ transparent painting, and four/eight/global exact-slot fill. Shared paths retain
 spacing/stabilization/pixel-perfect, clipping/wrapping/mirrors, alpha lock,
 private settings, preview Apply/Cancel, stale rejection and one linked atomic
 Undo. Brush settings/stamps are session tools, not new project schema fields.
-See [current local rework](../../glitchbong/docs/ezpix-issues3-local.md) for exact measured evidence.
+See [current handoff 438](../../glitchbong/docs/ezpix-continue438.md) for exact measured evidence.
 
 The [full feature inventory and completion estimate](../../glitchbong/docs/ezpix-completion-inventory.md) replaces the
 old broad-family phase allowance with a named **60-98** further bounded-phase
@@ -683,9 +694,119 @@ runtime dependencies, permissions, AI, image uploads or telemetry are added.
 No commit, push, deployment or publication is part of this continuation.
 
 Current phases 295-298: indexed pressure size and discrete density; see the
-[current local rework](../../glitchbong/docs/ezpix-issues3-local.md). No extension permission/protocol expansion.
+[current handoff 438](../../glitchbong/docs/ezpix-continue438.md). No extension permission/protocol expansion.
 Physical stylus and all separate release gates remain open.
 
 Current phases 299-308 add reviewed Aseprite rendered RGBA import; see the
-[current local rework](../../glitchbong/docs/ezpix-issues3-local.md). Strict editable import remains separate. No transfer
+[current handoff 438](../../glitchbong/docs/ezpix-continue438.md). Strict editable import remains separate. No transfer
 protocol/permission expansion. Physical, external-app and release gates remain.
+
+## Sparse authoring continuation 309-328
+
+Current [20-phase handoff](../../glitchbong/docs/ezpix-continue328.md) records
+sparse tiled v2 layers/frames, links, bounded edits, separate recovery, PNG/frame
+ZIP and reviewed dense bridge. Dense writer v16 and SnapForge capture/privacy/
+permissions remain unchanged. Earlier single-surface v1 descriptions are historical;
+v1 files migrate. Full indexed/live/native large-canvas parity and all physical/
+human/performance/hosted/store gates remain open. No new commit or publication.
+
+
+## Tiled membership continuation 329-348
+
+See [handoff 348](../../glitchbong/docs/ezpix-continue348.md). Core/companion
+0.398.0 adds bounded transient masks and masked editing in the website tiled
+workspace. No camera, capture protocol or permission expansion. Local core,
+independent pixel and production-browser evidence does not close physical
+mobile/stylus/camera, native chooser, Firefox/Safari, human external-editor/engine,
+accessibility audit, endurance/peak-memory/minimum-hardware, licensing/name,
+hosted/offline/install/update or store review gates. All remain unperformed here.
+
+
+## Tiled transform continuation 349-368
+
+Current [handoff 368](../../glitchbong/docs/ezpix-continue368.md) records bounded
+nearest-neighbour selection transforms, private transformed clipboard, staged cut
+and binary PNG exchange at core/companion 0.398.0. Dense v16/tiled v2 schemas,
+activeTab/scripting/alarms and capture protocol remain unchanged. Local production
+and actual unpacked capture/transfer checks remain distinct from simulated camera/
+screen sources. Physical mobile/stylus/camera and native chooser, Firefox/Safari,
+human external-editor/engine, full accessibility, peak-memory/endurance/minimum
+hardware, licensing/name, hosted/offline/install/update and store gates remain
+unclosed. No new commit or publication is authorized by this continuation.
+
+
+Persistent tiled masks 369-388: core 0.378.0, tiled v3 reads v1-v3, dense v16 unchanged.
+See [handoff 388](../../glitchbong/docs/ezpix-continue388.md). Static saved coverage,
+recovery/export and reviewed bake/bridge are local bounded features. All physical,
+non-Chromium, human external-app/engine, accessibility, endurance/peak-memory,
+minimum-hardware, licensing/name, hosted/offline/install/update and store gates
+remain open. No permission/protocol expansion or publication.
+
+
+Current coverage authoring 389-408: core/companion 0.398.0, tiled writer v3,
+readers v1-v3; dense v16 unchanged. [Handoff 408](../../glitchbong/docs/ezpix-continue408.md)
+records the second authorized batch. Library slots stay session-local; portable
+coverage JSON and grayscale PNG are explicit downloads/import reviews. No AI,
+image upload/telemetry, runtime dependency, permission or protocol expansion.
+All physical/human/non-Chromium/accessibility/performance/licensing/hosted/
+install/update/store gates remain open. No publication or commit performed.
+
+
+## Phase 438 local evidence, 2026-10-26
+
+Core/companion 0.428.0; dense v16, tiled v4. See the
+[complete handoff](../../glitchbong/docs/ezpix-continue438.md). Final local evidence:
+917 core/protocol/companion tests, 12 production browser scripts / 111 workflow
+groups, build `ktn4nJZlVYXpR2IZtYnXz`, 62 route checks, lint, package integrity and both
+companion bundles passed. Animated-mask independent reader checked 1,008 coverage
+samples and 382,464 exported RGBA pixels, including actual browser PNG/ZIP files.
+Real unpacked activeTab capture and guarded transfer passed. Camera/screen fixtures
+remain simulated; all physical/human/non-Chromium/accessibility/endurance/heap/
+minimum-hardware/licensing/hosted/offline/update/store rows remain open.
+No commit, publication or submission was performed.
+
+
+## Phase 468 local evidence, 2026-10-26
+
+Core/companion 0.458.0; dense v16, tiled v5. See the
+[complete handoff](../../glitchbong/docs/ezpix-continue468.md). Final local evidence:
+949 core/protocol/companion tests, 13 production browser scripts / 123 workflow
+groups, build `P7Ytk0Hrb9H80WUuycGD1`, 62 route checks, lint, package integrity and both
+companion bundles passed. Indexed independent reader checked 443,520 raw slot/RGBA
+locations and 567,360 exported RGBA pixels, including actual browser PNG/ZIP files.
+Real unpacked activeTab capture and guarded transfer passed. Camera/screen fixtures
+remain simulated. All physical/human/non-Chromium/accessibility/endurance/heap/
+minimum-hardware/licensing/hosted/offline/update/store rows remain open.
+No commit, push, publication or submission was performed.
+
+
+## Phase 480 local upload preparation, 2026-10-27
+
+Core/vendor/production and development companion are 0.459.0. See
+[handoff 480](../../glitchbong/docs/ezpix-continue480.md) and
+[Chrome upload preparation](chrome-store-upload.md). Local evidence: 959 tests,
+eight final-production browser scripts / 58 workflow groups, production build,
+lint/62 route checks, package provenance, independently checked fifteen-entry
+production ZIP and six CC0 starter project/PNG comparisons. Real unpacked
+activeTab capture and explicit transfer passed. Numeric Focus editing and
+first-click project downloads passed; two actual 1280x800 listing screenshots
+and an offline privacy page are prepared. No hosted/assigned-ID install/update,
+physical-device/media, non-Chromium, human external-app/engine, full accessibility,
+endurance/peak-heap/minimum-hardware, product licence/name or store gate was
+closed. No upload or submission was performed. This is an upload candidate.
+
+## Phase 500 local indexed transform continuation, 2026-10-27
+
+Core/vendor/production and development companion are **0.460.0**. See
+[handoff 500](../../glitchbong/docs/ezpix-continue500.md) and
+[upload preparation](chrome-store-upload.md). Exactly twenty phases 481-500
+deliver reviewed sparse indexed transforms/cut/clipboard and local .ezclipboard
+exchange. Local evidence: 989 tests; thirteen final-production browser regression
+scripts, including real unpacked capture/explicit editor transfer; 1,245-page
+production build; lint/62 route checks; package provenance; independent checks of
+3,363,840 raw slots, 990,720 rendered pixels, 90 PNGs and all fifteen release ZIP
+entries. The current upload candidate is `dist/release/ezpix-snapforge-0.460.0.zip`.
+Physical/mobile/media, non-Chromium, human external-app/engine, full accessibility,
+endurance/peak-heap/minimum-hardware, product licence/name, hosted/offline/
+assigned-ID install/update and store gates remain open. No upload or submission
+was performed. Next unused phase: **501 / 13qq**, bounded raw indexed PNG exchange.
