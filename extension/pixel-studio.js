@@ -16,7 +16,7 @@ export function mountPixelStudio(host, { onHandoff }) {
       <div class="ps-filebar">
         <label class="ps-name">Project <input data-ps-name maxlength="80" value="Untitled"></label>
         <button data-ps-new>New</button><label class="ps-open">Open project / image<input data-ps-open type="file" accept=".ezpix,.ase,.aseprite,.piskel,.png,.jpg,.jpeg,.webp" hidden></label>
-        <button data-ps-save class="ez-primary">Download project</button><button data-ps-geometry>Canvas</button><button data-ps-export>Export</button><button data-ps-handoff>Open in EzPix website</button>
+        <button data-ps-save class="ez-primary">Download project</button><button data-ps-geometry>Canvas</button><button data-ps-export>Export</button><button data-ps-handoff>Open in EzPIX website</button>
       </div>
       <div class="ps-context">
         <button data-ps-undo title="Undo (Ctrl+Z)" disabled>Undo</button><button data-ps-redo title="Redo (Ctrl+Shift+Z)" disabled>Redo</button>
@@ -58,6 +58,7 @@ export function mountPixelStudio(host, { onHandoff }) {
   let draftId = crypto.randomUUID();
   const tilemaps=mountTilemapPanel(q('[data-tilemap-inspector]'),{getEditor:()=>session.editor,canvas:()=>canvas,changed:()=>{session.changed();render();scheduleSave();},status,blocked:()=>Boolean(playing)||dialog.open});
   dialog.addEventListener('close',()=>tilemaps.refresh());
+  q('[data-ps-handoff]').hidden=!onHandoff;
   const fileName = () => (session.document.name.replace(/[^a-z0-9_-]+/gi, '-').slice(0, 60) || 'artwork');
   const report = error => {
     const message = error instanceof Error ? error.message : 'Studio operation failed. Your current artwork is retained.';

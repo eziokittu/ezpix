@@ -1,4 +1,4 @@
-# @ezpix/core 0.463.0
+# @ezpix/core 0.464.0
 
 Original deterministic RGBA editor and image conversion engine. No runtime
 dependencies or inference. Build with the workspace `npm run build`.
@@ -2178,3 +2178,12 @@ locks, modes and aggregate/Undo budgets reject before committing. The shared
 inspector stages the same reviewed operation in both website and extension.
 OpenRaster/workspace readers retain their original required-mimetype behaviour;
 the Tiled codec explicitly selects the generic validated ZIP reader.
+
+## EzPIX Insta standalone launch, 0.464.0
+
+The public Chrome name is EzPIX Insta. Shared Focus studio branding and download
+names match it. Converter/Focus `showApply:false` hides external apply controls;
+default behaviour is unchanged for website and developer bridge tests. The
+production extension disables website handoff/discovery and makes Pixel studio
+the primary popup action. Formats, document schemas, algorithms and permissions
+are unchanged. The website continues to consume the matching versioned archive.

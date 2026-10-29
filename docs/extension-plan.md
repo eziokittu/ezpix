@@ -1,11 +1,16 @@
 # EzPix Chrome companion architecture
 
-Current: core/extension **0.463.0**, dense v16 ordinary / v17 tilemap writers, v1-v17 readers; tiled v5 writer / v1-v5 readers.
+Current: core/extension **0.464.0**, dense v16 ordinary / v17 tilemap writers, v1-v17 readers; tiled v5 writer / v1-v5 readers.
 Read [current handoff](../../glitchbong/docs/ezpix-release-local.md),
 [product spec](../../glitchbong/docs/ezpix-spec.md) and [core reference](../packages/core/README.md).
 Website UI belongs to sibling `glitchbong` on `ezpix`; this repository uses `main`.
 
 ## Offline Pixel studio
+
+Public product: **EzPIX Insta**. Production has no website transfer controls or
+external website discovery. The localhost-only development build enables the
+existing guarded bridge for regression tests. Native file downloads remain the
+independent interchange method. See [store entry sheet](chrome-store-ezpix-insta.md).
 
 The toolbar opens a packaged manual editor at app.html#studio. It uses the shared
 PixelEditor engine and indexed authored plans, with no website dependency:

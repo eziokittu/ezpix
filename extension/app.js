@@ -2,6 +2,7 @@ import { mountConverter } from '../packages/core/dist/converter.js';
 import { encodeProject } from '../packages/core/dist/index.js';
 import { readImage } from '../packages/core/dist/browser.js';
 import { state, purgeExpired } from './db.js';
+import {WEBSITE_HANDOFF_ENABLED} from './config.js';
 import { mountTheme } from './theme.js';
 import { mountPixelStudio } from './pixel-studio.js';
 
@@ -10,6 +11,7 @@ const status = document.querySelector('[data-handoff-status]');
 const host = document.querySelector('[data-converter]'), studioHost = document.querySelector('[data-pixel-studio]');
 let ui, studio, handingOff = false;
 async function handoff(doc, retain = false) {
+  if (!WEBSITE_HANDOFF_ENABLED) throw Error('This release works locally. Download your project to keep editing.');
   if (handingOff) throw Error('A handoff is already being prepared.');
   handingOff = true; document.querySelector('[data-clear]').disabled = true;
   try {
@@ -22,7 +24,7 @@ async function handoff(doc, retain = false) {
   finally { handingOff = false; document.querySelector('[data-clear]').disabled = false; }
 }
 function show(view) {
-  if (view === 'studio' && !studio) studio = mountPixelStudio(studioHost, { onHandoff: handoff });
+  if (view === 'studio' && !studio) studio = mountPixelStudio(studioHost, { onHandoff: WEBSITE_HANDOFF_ENABLED ? handoff : undefined });
   if (view === 'studio') ui?.suspend(); else studio?.suspend();
   host.hidden = view !== 'capture'; studioHost.hidden = view !== 'studio';
   document.querySelectorAll('[data-studio-view]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.studioView === view)));
@@ -30,7 +32,8 @@ function show(view) {
 function mount() {
   ui = mountConverter(host, {
     createWorker: () => new Worker(new URL('worker.js', location.href), { type: 'module' }),
-    applyLabel: 'Open in EzPix website',
+    applyLabel: 'Open in EzPIX website',
+    showApply: WEBSITE_HANDOFF_ENABLED,
     onApply: doc => handoff(doc, Boolean(host.querySelector('[data-retain]')?.checked)),
     onEdit: doc => { show('studio'); studio.review(doc, 'Edit converted artwork', ['The prepared conversion is copied into this offline studio. Existing studio artwork is replaced only after Apply.']); },
   });

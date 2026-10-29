@@ -1,14 +1,18 @@
 # EzPix by GlitchBong
 
 Local Chrome capture companion and authoritative deterministic pixel-art core.
-Current core/extension **0.463.0**. Ordinary dense projects write **v16**;
+Current core/extension **0.464.0**. Ordinary dense projects write **v16**;
 projects with integrated tilemaps write **v17**. Readers accept **v1-v17**.
 The website lives in sibling `glitchbong` on branch `ezpix`; this repository uses
 `main`. No runtime AI, model, account or image upload is required.
 
 ## Extension-first local release
 
-The extension now contains an offline manual Pixel studio as well as capture and
+Public Chrome product name: **EzPIX Insta**. Production launch is standalone;
+website handoff is disabled until a later matching website release.
+[Copy-ready Chrome listing fields](docs/chrome-store-ezpix-insta.md).
+
+The EzPIX Insta extension contains an offline manual Pixel studio as well as capture and
 conversion. Open Pixel studio from the toolbar to draw, transform selections,
 edit layers/frames, paint shared tilemaps and download editable projects without
 opening the website. Tilemap export includes Tiled JSON, exact atlas PNGs and

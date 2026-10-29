@@ -4,7 +4,7 @@ import { selectOnPage } from './selector.js';
 import { authorize, authorizeDiscovery, responseFor, TRANSFER_LIMIT } from './protocol.js';
 import { decodeProject, ENGINE_VERSION } from '../packages/core/dist/index.js';
 import { imageDimensions } from '../packages/core/dist/browser.js';
-import { WEBSITE_ORIGIN } from './config.js';
+import { WEBSITE_ORIGIN, WEBSITE_HANDOFF_ENABLED } from './config.js';
 const EXPIRY=10*60*1000;
 const token=()=>[...crypto.getRandomValues(new Uint8Array(32))].map(n=>n.toString(16).padStart(2,'0')).join('');
 const arm=async()=>{const items=await Promise.all(['capture','transfer','selection'].map(key=>state(key)));const times=items.filter(Boolean).map(item=>item.expires);if(times.length)await chrome.alarms.create('ezpix-expiry',{when:Math.max(Date.now()+100,Math.min(...times))});};
@@ -64,6 +64,7 @@ chrome.runtime.onMessage.addListener((message,sender,reply)=>{
     if(message?.type==='SELECTED')return await capture(message,sender);
     if(message?.type==='CANCEL'){const pending=await state('selection');if(pending?.nonce===message.nonce&&sender.tab?.id===pending.tabId)await state('selection',null);return {status:'cancelled'};}
     if(message?.type==='HANDOFF') {
+      if(!WEBSITE_HANDOFF_ENABLED)throw Error('Website transfer is unavailable in this standalone release. Download your project instead.');
       internal(sender,'app.html');
       if(typeof message.project!=='string' || new TextEncoder().encode(message.project).length>TRANSFER_LIMIT)throw new Error('Transfer exceeds 16 MiB. Download the project, then open it in EzPix.');
       decodeProject(message.project);
@@ -80,6 +81,7 @@ chrome.runtime.onMessage.addListener((message,sender,reply)=>{
 });
 chrome.runtime.onMessageExternal.addListener((message,sender,reply)=>{
   (async()=>{
+    if(!WEBSITE_HANDOFF_ENABLED)throw Error('Website integration is unavailable in this release.');
     if(message?.op==='discover'){authorizeDiscovery(message,sender,WEBSITE_ORIGIN);return {protocol:1,engine:ENGINE_VERSION,status:'available'};}
     await purgeExpired();const record=await state('transfer');authorize(record,message,sender,WEBSITE_ORIGIN);
     const response=responseFor(record,message);

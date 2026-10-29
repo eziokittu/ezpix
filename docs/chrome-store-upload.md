@@ -1,3 +1,22 @@
+# Current EzPIX Insta upload candidate
+
+29 October 2026. Owner-selected public name: **EzPIX Insta**. Version **0.464.0**.
+Use `dist/release/ezpix-insta-0.464.0.zip` to replace the uploaded 0.463.0 package
+inside the same draft Chrome Web Store item. All copy-ready fields, privacy
+selections, reviewer instructions and asset paths are in
+[the EzPIX Insta entry sheet](chrome-store-ezpix-insta.md).
+
+The production package is standalone: Pixel studio is first in the popup;
+website transfer controls, internal HANDOFF and external website discovery are
+disabled. The localhost development variant retains the guarded bridge for QA.
+The public privacy URL currently returns 404 and must be hosted before submission;
+`dist/store-assets/privacy.html` is a self-contained hosting source. Support /contact
+responds successfully. No publication, deployment or dashboard change is performed.
+
+---
+
+Historical earlier-brand preparation (superseded by the current entry sheet):
+
 # Current extension-first candidate, 29 October 2026
 
 Version **0.463.0**. Run `npm run release:local`. Current ZIP:

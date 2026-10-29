@@ -37,6 +37,8 @@ try{
  await run('extension-package',process.execPath,[npm,'run','package:extension']);
  await run('package-integrity',process.execPath,['scripts/verify-package.mjs']);
  await run('offline-studio',process.execPath,['scripts/studio-release-qa.mjs']);
+ await run('insta-launch',process.execPath,['scripts/insta-launch-qa.mjs']);
+ await run('store-assets-package',process.execPath,['scripts/package-store-assets.mjs']);
  await run('capture-converter-listing',process.execPath,['scripts/issues4-extension.mjs']);
  server=spawn(process.execPath,[resolve(web,'node_modules/next/dist/bin/next'),'start','-p','3791'],{cwd:web,env,windowsHide:true,stdio:'ignore'});
  let ready=false;for(let i=0;i<120;i++){if(server.exitCode!==null)throw Error('Website QA server exited.');try{if((await fetch('http://localhost:3791/tools/ezpix')).ok){ready=true;break;}}catch{}await new Promise(done=>setTimeout(done,500));}if(!ready)throw Error('Website QA server did not start.');
