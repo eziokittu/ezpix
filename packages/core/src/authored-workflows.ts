@@ -1,4 +1,5 @@
 import {tilemapOperation,tilemapBuffers,type TilemapOperation} from './tilemap-layers.js';
+import {appendTilemaps} from './tilemap-import.js';
 import {indexedGeometryOperation,type IndexedGeometryOperation} from './indexed-geometry.js';
 import {indexedSelectionOperation,type IndexedSelectionOperation} from './indexed-selection.js';
 import {indexedToolOperation,type IndexedToolOperation} from './indexed-tools.js';
@@ -16,6 +17,7 @@ import {validateLiveEffects,type LiveEffect} from './layer-render.js';
 import {validatePalette} from './toolkit.js';
 export type PaletteEdit={action:'add-group';name:string}|{action:'rename-group';id:string;name:string}|{action:'remove-group';id:string}|{action:'assign';index:number;id:string|null}|{action:'lock';index:number;locked:boolean}|{action:'replace';index:number;color:string}|{action:'add';color:string}|{action:'remove';index:number}|{action:'move';index:number;to:number}|{action:'clear-organisation'};
 export type AuthoredOperation=TilemapOperation|IndexedOperation|IndexedToolOperation|IndexedGeometryOperation|IndexedSelectionOperation
+ |{kind:'tilemap-import';project:string}
  |{kind:'indexed-cel';text:string;destination:'layer'|'cel'}
  |{kind:'reference-placement';id:string;placement:ReferencePlacement}
  |{kind:'text';id?:string;name:string;text:BitmapText}
@@ -52,6 +54,7 @@ export function prepareAuthored(doc:PixelDocument,input:AuthoredOperation,budget
  const o=structuredClone(input),state=authoredState(doc),draft={...doc,...state};
  if(!o)throw new Error('Choose an authored operation.');
  if(o.kind==='tilemap')tilemapOperation(draft,o);
+ else if(o.kind==='tilemap-import')appendTilemaps(draft,decodeProject(o.project));
  else if(o.kind==='indexed-geometry')indexedGeometryOperation(draft,o);
  else if(o.kind==='indexed-selection'||o.kind==='indexed-selection-clear'||o.kind==='indexed-selection-paint')indexedSelectionOperation(draft,o);
  else if(o.kind==='indexed-tool')indexedToolOperation(draft,o);

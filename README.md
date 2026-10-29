@@ -1,7 +1,7 @@
 # EzPix by GlitchBong
 
 Local Chrome capture companion and authoritative deterministic pixel-art core.
-Current core/extension **0.462.0**. Ordinary dense projects write **v16**;
+Current core/extension **0.463.0**. Ordinary dense projects write **v16**;
 projects with integrated tilemaps write **v17**. Readers accept **v1-v17**.
 The website lives in sibling `glitchbong` on branch `ezpix`; this repository uses
 `main`. No runtime AI, model, account or image upload is required.
@@ -12,7 +12,8 @@ The extension now contains an offline manual Pixel studio as well as capture and
 conversion. Open Pixel studio from the toolbar to draw, transform selections,
 edit layers/frames, paint shared tilemaps and download editable projects without
 opening the website. Tilemap export includes Tiled JSON, exact atlas PNGs and
-the complete editable project; [contracts and limits](../glitchbong/docs/ezpix-tilemaps.md).
+the complete editable project. Reviewed single-atlas Tiled ZIP import adds static
+map layers to matching canvases without replacing artwork; [contracts and limits](../glitchbong/docs/ezpix-tilemaps.md).
 Imports/recovery require review. Local recovery is opt-in per studio tab.
 
 Run `npm run release:local` for the complete reproducible local gate: core/protocol

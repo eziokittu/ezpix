@@ -1,4 +1,4 @@
-# @ezpix/core 0.462.0
+# @ezpix/core 0.463.0
 
 Original deterministic RGBA editor and image conversion engine. No runtime
 dependencies or inference. Build with the workspace `npm run build`.
@@ -2154,3 +2154,27 @@ cancellation-safe map pointer/keyboard-coordinate controls across both products.
 Full schema, restrictions, directions and remaining capabilities are documented
 in sibling glitchbong/docs/ezpix-tilemaps.md. This is dense/static RGBA tilemaps
 with Tiled export, not animated/indexed/sparse maps or a Tiled importer.
+
+## Reviewed Tiled import, 0.463.0
+
+`decodeTilemapBundle` validates the complete ZIP directory/CRC/expansion budget,
+strict Tiled JSON 1.10 map and native PNG atlas before allocating map planes.
+Initial import is finite orthogonal tile layers with one inline, unspaced root
+PNG atlas, common tile size, zero offsets, array cell data and H/V/D transforms.
+Layer opacity rounds to the nearest byte, with upward ties, disclosed in review.
+External resources/TSJ, groups/objects, properties, animated tiles, chunks and
+compressed map data reject. Every atlas slot, duplicate, unused tile and hidden
+RGB byte is retained; firstgid maps to local IDs. Optional source.ezpix/README.txt
+are checked as ZIP bytes and ignored, never parsed or trusted. Fixed supported
+filenames and all native archive/image limits apply (16 MiB input, 8 MiB ZIP
+expansion, 2 MiB map JSON, one-megapixel atlas and existing tile/map budgets).
+
+`tilemap-import` authored plans append the detached maps above existing artwork
+on a matching RGBA canvas, with unique destination layer/tileset IDs, preserved
+shared aliases, stale/private plan validation and one atomic Undo. Sprite cels,
+palette, dimensions and timeline remain intact; the maps are static across all
+existing frames. Imported tiles detach from prior tilesets. Wrong dimensions,
+locks, modes and aggregate/Undo budgets reject before committing. The shared
+inspector stages the same reviewed operation in both website and extension.
+OpenRaster/workspace readers retain their original required-mimetype behaviour;
+the Tiled codec explicitly selects the generic validated ZIP reader.

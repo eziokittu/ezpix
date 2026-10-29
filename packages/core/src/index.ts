@@ -1,6 +1,7 @@
 import {copyTilemap,tilemapBuffers,validateTilemapLayers} from './tilemap-layers.js';
 export * from './tilemap-layers.js';
 export * from './tilemap-export.js';
+export * from './tilemap-import.js';
 import {prepareIndexedSelection} from './indexed-selection.js';
 import {indexedGeometryAuthored} from './indexed-geometry.js';
 export * from './indexed-selection.js';

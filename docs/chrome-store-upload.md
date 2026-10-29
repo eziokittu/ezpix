@@ -1,7 +1,7 @@
 # Current extension-first candidate, 29 October 2026
 
-Version **0.462.0**. Run `npm run release:local`. Current ZIP:
-`dist/release/ezpix-snapforge-0.462.0.zip`; exact size/hash/file allowlist are in
+Version **0.463.0**. Run `npm run release:local`. Current ZIP:
+`dist/release/ezpix-snapforge-0.463.0.zip`; exact size/hash/file allowlist are in
 its adjacent JSON. Do not use the historical 0.460.0 hash below for this version.
 
 The product now includes a packaged offline manual Pixel studio. Suggested listing:
@@ -16,7 +16,8 @@ Create sprites from scratch with Pencil, Eraser, Fill, Pick, shapes, selection
 move/copy/flip/rotation/scale and reviewed canvas geometry. Edit layers and timed
 animation frames with Undo/Redo. Paint static RGBA tilemaps using shared tilesets,
 flip/rotate placements, review shared tile edits and download a Tiled map/atlas
-bundle with the full editable EzPix project. Open editable EzPix projects, supported Aseprite/
+bundle with the full editable EzPix project. Review single-atlas Tiled ZIP imports
+to add editable map layers to a matching canvas. Open editable EzPix projects, supported Aseprite/
 Piskel files and local images. Download PNG, APNG, GIF, sheets, frame ZIPs or
 editable projects directly. The website is optional. All artwork processing is
 local, without AI, image uploads, accounts or extension analytics.
