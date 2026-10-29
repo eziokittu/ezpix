@@ -89,7 +89,20 @@ for surface in ['extension','website']:
                         reconstructed[(dy*tw+dx)*4:(dy*tw+dx+1)*4]=atlas[start:start+4]
                 assert reconstructed==expected
         assert flags_seen==set(range(8)),flags_seen
-        reports.append({'surface':surface,'tilePixels':pixels_checked,'transforms':sorted(flags_seen),'zipCrc':True,'exactHiddenRgbAndIds':True})
+        imported=json.loads((root/(surface+'-map-imported.ezpix')).read_text(encoding='utf-8'))
+        assert imported['layers'][:len(doc['layers'])]==doc['layers'], 'import changed pre-existing sprite/map layers'
+        assert imported['frames']==doc['frames'] and imported['palette']==doc['palette']
+        imported_maps=[layer for layer in imported['layers'] if 'tilemap' in layer]
+        assert len(imported_maps)==4
+        imported_sets={s['id']:s for s in imported['tilesets']}
+        for original,added in zip(maps,imported_maps[-2:]):
+            assert added['tilemap']['cells']==original['tilemap']['cells']
+            assert added['tilemap']['flags']==original['tilemap']['flags']
+            assert added['tilemap']['tilesetId']!=original['tilemap']['tilesetId']
+            assert imported_sets[added['tilemap']['tilesetId']]['tiles']==sets[original['tilemap']['tilesetId']]['tiles']
+            assert added['visible']==original['visible'] and added['opacity']==original['opacity']
+        assert imported_maps[-1]['tilemap']['tilesetId']==imported_maps[-2]['tilemap']['tilesetId']
+        reports.append({'surface':surface,'tilePixels':pixels_checked,'transforms':sorted(flags_seen),'zipCrc':True,'exactHiddenRgbAndIds':True,'importedSharedLayers':2})
 assert reports
 (root/'independent-result.json').write_text(json.dumps(reports,indent=2)+'\n')
 print('PASS independent ZIP/PNG/hidden RGB/slot/global-ID/all-eight-transform checks:',len(reports),'surfaces')
