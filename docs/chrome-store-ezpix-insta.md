@@ -166,17 +166,27 @@ All artwork processing is local. Production website transfer is disabled in this
 Files in `dist/store-assets/`:
 
 - `ezpix-insta-icon-128.png`: store icon, 128x128, original pixel canvas and pencil mark.
+- `ezpix-insta-small-promo-440x280.png`: **Small promo tile**, 440x280.
+- `ezpix-insta-marquee-1400x560.png`: **Marquee promo tile**, 1400x560.
 - `01-pixel-studio-1280x800.png`: main editor.
 - `02-layers-animation-1280x800.png`: frames and timing.
 - `03-shared-tilemaps-1280x800.png`: map editing/shared tiles.
 - `04-capture-convert-1280x800.png`: capture/image conversion UI.
+- `05-export-artwork-1280x800.png`: reviewed sprite-sheet export UI.
 - `privacy.html`: public-policy hosting source, not a screenshot or extension ZIP.
 - `ARTWORK.txt`: original artwork provenance, not a store upload field.
 
-All four screenshots are actual production-extension UI, with original authored
-test artwork. Small promo tile (440x280), marquee (1400x560) and video are optional;
-leave those fields blank until suitable assets are prepared. No old branding
-screenshots should be uploaded to the renamed listing.
+Upload screenshots 01-05 in that order; all five show actual production-extension
+UI with original authored artwork. Both promo tiles are opaque RGB PNGs with
+original vector illustrations and the centered icon. Upload each to its named
+promo field. The optional video field takes a YouTube URL; leave it blank for this
+release. No video is hosted or uploaded by this asset workflow.
+
+Rebuild from the extension repository with `node scripts/generate-insta-icons.mjs`,
+`npm run package:extension`, `node scripts/insta-launch-qa.mjs`, then
+`node scripts/package-store-assets.mjs`. Set `EZPIX_CHROMIUM_PATH` to an installed
+extension-capable Chromium if needed. The last command renders both promo tiles
+from `scripts/generate-store-graphics.mjs` and packages all twelve listing files.
 
 ## Official references
 

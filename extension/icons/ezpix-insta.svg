@@ -1,5 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
   <rect x="16" y="16" width="96" height="96" rx="22" fill="#102d34"/>
+  <g id="illustration" transform="translate(-6 0)">
   <!-- A tiny pixel canvas: deliberately stepped artwork, readable without letters. -->
   <rect x="29" y="29" width="65" height="67" rx="6" fill="#061c24"/>
   <rect x="29" y="26" width="65" height="67" rx="6" fill="#f0fff8"/>
@@ -21,5 +22,6 @@
     <path d="M84 56H90V88H84Z" fill="#f19b3d"/>
     <path d="M76 88H90L83 102Z" fill="#ffe9bc"/>
     <path d="M80 96H86L83 102Z" fill="#102d34"/>
+  </g>
   </g>
 </svg>
