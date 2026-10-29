@@ -1,6 +1,6 @@
 {
   "name": "@ezpix/core",
-  "version": "0.461.0",
+  "version": "0.462.0",
   "private": true,
   "type": "module",
   "files": [
@@ -28,6 +28,10 @@
     "./transfer": {
       "types": "./dist/transfer.d.ts",
       "default": "./dist/transfer.js"
+    },
+    "./tilemap-ui": {
+      "types": "./dist/tilemap-ui.d.ts",
+      "default": "./dist/tilemap-ui.js"
     }
   }
 }

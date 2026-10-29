@@ -42,6 +42,9 @@ try{
  let ready=false;for(let i=0;i<120;i++){if(server.exitCode!==null)throw Error('Website QA server exited.');try{if((await fetch('http://localhost:3791/tools/ezpix')).ok){ready=true;break;}}catch{}await new Promise(done=>setTimeout(done,500));}if(!ready)throw Error('Website QA server did not start.');
  await run('real-capture-handoff',process.execPath,['scripts/studio-handoff-qa.mjs']);
  await run('raw-indexed-website',process.execPath,['scripts/raw-indexed-png-ui.mjs']);
+ env.EZPIX_TILEMAP_WEBSITE='http://localhost:3791/tools/ezpix';
+ await run('integrated-tilemaps',process.execPath,['scripts/tilemap-studio-qa.mjs']);
+ await run('independent-tilemaps','python',['scripts/tilemap-reference.py']);
  await run('independent-pixels','python',['scripts/studio-release-reference.py']);
  await run('independent-archive','python',['scripts/phase481-500-release.py']);
  report.status='local checks passed; publication and broader roadmap remain open';await save();

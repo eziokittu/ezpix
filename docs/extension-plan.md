@@ -1,7 +1,7 @@
 # EzPix Chrome companion architecture
 
-Current: core/extension **0.461.0**, dense v16 writer / v1-v16 readers; tiled v5 writer / v1-v5 readers.
-Read [current handoff](../../glitchbong/docs/ezpix-continue500.md),
+Current: core/extension **0.462.0**, dense v16 ordinary / v17 tilemap writers, v1-v17 readers; tiled v5 writer / v1-v5 readers.
+Read [current handoff](../../glitchbong/docs/ezpix-release-local.md),
 [product spec](../../glitchbong/docs/ezpix-spec.md) and [core reference](../packages/core/README.md).
 Website UI belongs to sibling `glitchbong` on `ezpix`; this repository uses `main`.
 
@@ -12,7 +12,11 @@ PixelEditor engine and indexed authored plans, with no website dependency:
 pencil/eraser/fill/pick/shapes, selection transform previews, all-frame canvas
 resize/crop/scale/rotate/flip/trim, editable layers and timed frames, exact indexed
 slots, Undo/Redo and reviewed project/image/Aseprite/Piskel imports. Downloads
-include EzPix, PNG/APNG/GIF, atlas/frame ZIP and bounded Aseprite.
+include EzPix, PNG/APNG/GIF, atlas/frame ZIP and bounded Aseprite. Shared static
+RGBA tilemap layers support reference painting, transforms, shared pixel edits
+and reviewed remapping/rasterization with Undo. Tiled bundle export retains
+exact atlas slots and includes the full editable project. See
+[tilemap contracts](../../glitchbong/docs/ezpix-tilemaps.md).
 
 Conversion has a separate Edit in Pixel studio action with Apply/Cancel replacement.
 Switching away from capture stops camera/screen tracks. Original sources are

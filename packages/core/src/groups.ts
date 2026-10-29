@@ -10,7 +10,7 @@ export function groupAncestors(doc:PixelDocument,parentId:string|null):LayerGrou
  const out:LayerGroup[]=[];while(parentId!==null){if(out.length>=MAX_GROUP_DEPTH)throw new Error('Groups support at most four nesting levels.');const g=doc.groups.find(g=>g.id===parentId);if(!g||out.some(a=>a.id===g.id))throw new Error('Missing or cyclic layer group.');out.push(g);parentId=g.parentId;}return out;
 }
 export function layerVisible(doc:PixelDocument,layer:Layer){return layer.visible&&groupAncestors(doc,layer.groupId).every(g=>g.visible);}
-export function layerEditable(doc:PixelDocument,layer:Layer){return !layer.text&&!layer.adjustment&&layer.visible&&!layer.locked&&groupAncestors(doc,layer.groupId).every(g=>g.visible&&!g.locked);}
+export function layerEditable(doc:PixelDocument,layer:Layer){return !layer.text&&!layer.adjustment&&!layer.tilemap&&layer.visible&&!layer.locked&&groupAncestors(doc,layer.groupId).every(g=>g.visible&&!g.locked);}
 export function descendantLayers(doc:PixelDocument,id:string){return doc.layers.filter(l=>groupAncestors(doc,l.groupId).some(g=>g.id===id));}
 /** Groups have at least one leaf; leaves of each subtree occupy one contiguous span. */
 export function validateGroups(doc:PixelDocument){
@@ -27,7 +27,7 @@ export function layerForest(doc:PixelDocument,parentId:string|null=null):LayerNo
 export function layerRows(doc:PixelDocument){const rows:{id:string;group:boolean;depth:number}[]=[];const visit=(nodes:LayerNode[],depth:number)=>{for(const n of nodes.slice().reverse()){rows.push({id:n.id,group:n.group,depth});if(n.group)visit(n.children,depth+1);}};visit(layerForest(doc),0);return rows;}
 /** Premultiplied floats inside isolated groups; round only the final document pixel. */
 export function groupedComposite(doc:PixelDocument,frameId:string){
- if(doc.layers.some(l=>l.text||l.adjustment)||doc.groups.some(g=>g.effects?.some(e=>e.enabled)))return advancedComposite(doc,frameId);
+ if(doc.layers.some(l=>l.text||l.adjustment||l.tilemap)||doc.groups.some(g=>g.effects?.some(e=>e.enabled)))return advancedComposite(doc,frameId);
  const forest=layerForest(doc),layers=new Map(doc.layers.map(l=>[l.id,l])),groups=new Map(doc.groups.map(g=>[g.id,g])),rasters=new Map(doc.layers.map(l=>[l.id,renderLayerPixels(l,doc.width,doc.height,frameId)]));
  function render(nodes:LayerNode[],p:number):number[]{let r=0,g=0,b=0,a=0;for(const n of nodes){const item=n.group?groups.get(n.id)!:layers.get(n.id)!;if(!item.visible||!item.opacity)continue;let sr:number,sg:number,sb:number,sa:number;const opacity=item.opacity/255;
   if(n.group){[sr,sg,sb,sa]=render(n.children,p);sr*=opacity;sg*=opacity;sb*=opacity;sa*=opacity;}else{const q=rasters.get(n.id)!;if(!q.length)continue;sa=q[p+3]/255*opacity;sr=q[p]*sa;sg=q[p+1]*sa;sb=q[p+2]*sa;}

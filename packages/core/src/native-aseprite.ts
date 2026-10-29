@@ -153,7 +153,7 @@ export function asepriteExportWarnings(doc:PixelDocument){
 }
 export function encodeAseprite(source:PixelDocument){
  if(source.outputMode||source.editingMode)fail('Document output requires PNG or flattened PSD/ORA export. Use EzPix to preserve source colours.');
- if(source.layers.some(l=>l.text||l.adjustment||l.mask||l.effects?.length))fail('Layer masks/live effects require baking or flattened export. Use EzPix to preserve editability.');
+ if(source.layers.some(l=>l.text||l.adjustment||l.tilemap||l.mask||l.effects?.length))fail('Tilemaps, live layers and masks/effects require baking or flattened export. Use EzPix to preserve editability.');
  if(source.layers.some(l=>l.blendMode!=='normal'))fail('Layer blends are unsupported by this native codec. Use EzPix, PNG or flattened PSD/ORA frames.');
  if(source.groups.length)fail('Layer groups are unsupported by this native codec. Use EzPix, PNG or flattened PSD/ORA frames.');
  const doc=decodeProject(encodeProject(source,false)),frames:Uint8Array[]=[],indexed=doc.indexed,opaque=!!indexed&&indexed.transparentIndex===null;

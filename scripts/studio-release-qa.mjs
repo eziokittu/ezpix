@@ -94,7 +94,7 @@ try {
   }
   check('desktop and 390/320px studio/export controls remain accessible');
   assert.deepEqual(network, [], 'manual studio, conversion and downloads require no HTTP requests'); assert.deepEqual(errors, []);
-  await writeFile(resolve(out, 'result.json'), JSON.stringify({ version: '0.461.0', browser: context.browser().version(), checks, errors, network }, null, 2));
+  await writeFile(resolve(out, 'result.json'), JSON.stringify({ version: JSON.parse(await readFile('extension/manifest.json','utf8')).version, browser: context.browser().version(), checks, errors, network }, null, 2));
 } catch (error) {
   console.error(errors); if (page) { console.error(await page.locator('[data-ps-status]').allTextContents()); await page.screenshot({ path: resolve(out, 'failure.png'), fullPage: true }).catch(() => {}); } throw error;
 } finally { await context.close(); }

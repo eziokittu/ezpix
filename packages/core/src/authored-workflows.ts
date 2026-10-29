@@ -1,3 +1,4 @@
+import {tilemapOperation,tilemapBuffers,type TilemapOperation} from './tilemap-layers.js';
 import {indexedGeometryOperation,type IndexedGeometryOperation} from './indexed-geometry.js';
 import {indexedSelectionOperation,type IndexedSelectionOperation} from './indexed-selection.js';
 import {indexedToolOperation,type IndexedToolOperation} from './indexed-tools.js';
@@ -14,7 +15,7 @@ import {validateBitmapText,renderBitmapText,type BitmapText} from './bitmap-text
 import {validateLiveEffects,type LiveEffect} from './layer-render.js';
 import {validatePalette} from './toolkit.js';
 export type PaletteEdit={action:'add-group';name:string}|{action:'rename-group';id:string;name:string}|{action:'remove-group';id:string}|{action:'assign';index:number;id:string|null}|{action:'lock';index:number;locked:boolean}|{action:'replace';index:number;color:string}|{action:'add';color:string}|{action:'remove';index:number}|{action:'move';index:number;to:number}|{action:'clear-organisation'};
-export type AuthoredOperation=IndexedOperation|IndexedToolOperation|IndexedGeometryOperation|IndexedSelectionOperation
+export type AuthoredOperation=TilemapOperation|IndexedOperation|IndexedToolOperation|IndexedGeometryOperation|IndexedSelectionOperation
  |{kind:'indexed-cel';text:string;destination:'layer'|'cel'}
  |{kind:'reference-placement';id:string;placement:ReferencePlacement}
  |{kind:'text';id?:string;name:string;text:BitmapText}
@@ -50,12 +51,13 @@ function paletteEdit(doc:PixelDocument,e:PaletteEdit){
 export function prepareAuthored(doc:PixelDocument,input:AuthoredOperation,budget=8*1024*1024):AuthoredPlan {
  const o=structuredClone(input),state=authoredState(doc),draft={...doc,...state};
  if(!o)throw new Error('Choose an authored operation.');
- if(o.kind==='indexed-geometry')indexedGeometryOperation(draft,o);
+ if(o.kind==='tilemap')tilemapOperation(draft,o);
+ else if(o.kind==='indexed-geometry')indexedGeometryOperation(draft,o);
  else if(o.kind==='indexed-selection'||o.kind==='indexed-selection-clear'||o.kind==='indexed-selection-paint')indexedSelectionOperation(draft,o);
  else if(o.kind==='indexed-tool')indexedToolOperation(draft,o);
  else if(o.kind==='indexed-document')indexedOperation(draft,o);
  else if(o.kind==='indexed-cel'&&draft.indexed)importIndexedCel(draft,o.text,o.destination);
- else if(o.kind==='indexed-cel'){const image=expandIndexedCel(decodeIndexedCel(o.text));if(image.width!==doc.width||image.height!==doc.height)throw new Error('Indexed cel must match the canvas dimensions.');if(!['layer','cel'].includes(o.destination))throw new Error('Choose indexed cel destination.');const current=editable(draft,doc.activeLayerId),mapped=editingPixels(draft,image.pixels),pixels=mapped.some(v=>v!==0)?mapped:new Uint8ClampedArray(0);if(current.text||current.adjustment)throw new Error('Select a raster artwork layer for indexed import.');if(o.destination==='cel'){const previous=current.cels[doc.activeFrameId];for(const id of Object.keys(current.cels))if(current.cels[id]===previous)current.cels[id]=pixels;}else{checkCelBudget(doc.width,doc.height,doc.layers.length+1,doc.frames.length);let n=1;while(draft.layers.some(l=>l.id===`layer-${n}`))n++;const layer=makeLayer(doc,`layer-${n}`,'Indexed cel',true,Object.fromEntries(doc.frames.map(f=>[f.id,f.id===doc.activeFrameId?pixels:new Uint8ClampedArray(0)])),{groupId:current.groupId});draft.layers.splice(draft.layers.indexOf(current)+1,0,layer);draft.activeLayerId=layer.id;}}
+ else if(o.kind==='indexed-cel'){const image=expandIndexedCel(decodeIndexedCel(o.text));if(image.width!==doc.width||image.height!==doc.height)throw new Error('Indexed cel must match the canvas dimensions.');if(!['layer','cel'].includes(o.destination))throw new Error('Choose indexed cel destination.');const current=editable(draft,doc.activeLayerId),mapped=editingPixels(draft,image.pixels),pixels=mapped.some(v=>v!==0)?mapped:new Uint8ClampedArray(0);if(current.text||current.adjustment||current.tilemap)throw new Error('Select a raster artwork layer for indexed import.');if(o.destination==='cel'){const previous=current.cels[doc.activeFrameId];for(const id of Object.keys(current.cels))if(current.cels[id]===previous)current.cels[id]=pixels;}else{checkCelBudget(doc.width,doc.height,doc.layers.length+1,doc.frames.length);let n=1;while(draft.layers.some(l=>l.id===`layer-${n}`))n++;const layer=makeLayer(doc,`layer-${n}`,'Indexed cel',true,Object.fromEntries(doc.frames.map(f=>[f.id,f.id===doc.activeFrameId?pixels:new Uint8ClampedArray(0)])),{groupId:current.groupId});draft.layers.splice(draft.layers.indexOf(current)+1,0,layer);draft.activeLayerId=layer.id;}}
  else if(o.kind==='editing-policy'){if(!['rgba','grayscale'].includes(o.mode))throw new Error('Choose RGBA or grayscale editing.');if(o.mode==='grayscale'){sourceGrayscale(draft);draft.editingMode='grayscale';}else delete draft.editingMode;}
  else if(o.kind==='source-grayscale')sourceGrayscale(draft);
  else if(o.kind==='document-transfer')transferDocument(draft,decodeProject(o.project),o.destination);
@@ -75,7 +77,7 @@ export function prepareAuthored(doc:PixelDocument,input:AuthoredOperation,budget
  if(o.kind==='palette')draft.palette=editingPalette(draft,draft.palette);
  validateIndexedDocument(draft);validateGroups(draft);validateReferences(draft);validateAuthoredMetadata(draft);
  const baseline=encodeProject(doc,false),changed=encodeProject(draft,false)!==baseline;
- const buffers=new Set<Uint8Array|Uint8ClampedArray>([...Object.values(doc.indexed?.cels??{}),...Object.values(draft.indexed?.cels??{})].flatMap(c=>Object.values(c)));for(const b of new Set([...doc.layers,...draft.layers].flatMap(l=>[...Object.values(l.cels),...(l.mask?[l.mask.values]:[])]).concat([...doc.references,...draft.references].map(r=>r.pixels))))buffers.add(b);
+ const buffers=new Set<Uint8Array|Uint8ClampedArray|Int16Array>(tilemapBuffers([...doc.layers,...draft.layers]));for(const b of new Set<Uint8Array|Uint8ClampedArray>([...Object.values(doc.indexed?.cels??{}),...Object.values(draft.indexed?.cels??{})].flatMap(c=>Object.values(c))))buffers.add(b);for(const b of new Set([...doc.layers,...draft.layers].flatMap(l=>[...Object.values(l.cels),...(l.mask?[l.mask.values]:[])]).concat([...doc.references,...draft.references].map(r=>r.pixels))))buffers.add(b);
  const historyBytes=[...buffers].reduce((n,p)=>n+p.byteLength,0)+(doc.layers.length+draft.layers.length+doc.groups.length+draft.groups.length)*4096+32768;
  if(changed&&(!Number.isFinite(budget)||historyBytes>budget))throw new Error('Authored operation exceeds the undo memory budget.');
  const after=authoredState(draft),plan=Object.freeze({baseline,changed,historyBytes,get preview(){return composite(draft);},get displayPreview(){return referenceDisplay(draft);}});plans.set(plan,{options:o,state:after});return plan;

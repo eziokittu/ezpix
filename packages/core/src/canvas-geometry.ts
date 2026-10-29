@@ -64,7 +64,7 @@ function transform(pixels:Uint8ClampedArray,oldWidth:number,oldHeight:number,g:{
 }
 export function prepareCanvasGeometry(doc:PixelDocument,options:CanvasGeometryOptions,historyBudget=8*1024*1024):CanvasGeometryPlan {
  if(doc.indexed)return prepareIndexedGeometry(doc,options,historyBudget);
- if(doc.layers.some(l=>l.text||l.adjustment))throw new Error('Rasterize text and flatten adjustment layers before whole-canvas geometry.');if(doc.slices?.length)throw new Error('Clear sprite slices before changing canvas geometry; existing coordinates are preserved until then.');
+ if(doc.layers.some(l=>l.text||l.adjustment||l.tilemap))throw new Error('Rasterize text and flatten adjustment layers before whole-canvas geometry.');if(doc.slices?.length)throw new Error('Clear sprite slices before changing canvas geometry; existing coordinates are preserved until then.');
  const g=resolveCanvasGeometry(doc,options);checkCelBudget(g.width,g.height,doc.layers.length,doc.frames.length);
  const changed=g.options.kind==='rotate'||g.options.kind==='flip'||g.width!==doc.width||g.height!==doc.height||g.x!==0||g.y!==0;
  let beforeBytes=0,afterBytes=0,clippedPixels=0;

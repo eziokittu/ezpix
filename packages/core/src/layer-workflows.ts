@@ -1,5 +1,6 @@
 import {encodeProject,copyLayer,rasterCel,type PixelDocument,type Layer} from './document.js';
 import {layerEditable} from './groups.js';
+import {tilemapBuffers} from './tilemap-layers.js';
 import {validateLayerRendering,renderLayerPixels,type LiveEffect} from './layer-render.js';
 import {copyCoverage,editCoverage,paintCoverage,type Coverage,type CoverageEdit,type CoverageBrush} from './coverage.js';
 export type LayerWorkflow=
@@ -14,15 +15,15 @@ export interface LayerWorkflowPlan {readonly baseline:string;readonly changed:bo
 type State={options:LayerWorkflow;layers:Layer[]};
 const plans=new WeakMap<LayerWorkflowPlan,State>();
 const integer=(v:number,a:number,b:number)=>{if(!Number.isInteger(v)||v<a||v>b)throw new Error(`Use whole numbers from ${a} to ${b}.`);};
-function selected(doc:PixelDocument,ids:string[],metadata=false){if(!Array.isArray(ids)||!ids.length||new Set(ids).size!==ids.length)throw new Error('Choose distinct artwork layers.');return ids.map(id=>{const l=doc.layers.find(l=>l.id===id);if(!l||!layerEditable(doc,metadata?{...l,text:undefined,adjustment:undefined}:l))throw new Error('Show and unlock every target layer and group.');return l;});}
-export function layerHistoryBytes(before:Layer[],after:Layer[],extra=0){const buffers=new Set([...before,...after].flatMap(l=>[...Object.values(l.cels),...(l.mask?[l.mask.values]:[])]));return [...buffers].reduce((n,p)=>n+p.byteLength,0)+(before.length+after.length)*2048+extra;}
+function selected(doc:PixelDocument,ids:string[],metadata=false){if(!Array.isArray(ids)||!ids.length||new Set(ids).size!==ids.length)throw new Error('Choose distinct artwork layers.');return ids.map(id=>{const l=doc.layers.find(l=>l.id===id);if(!l||!layerEditable(doc,metadata?{...l,text:undefined,adjustment:undefined,tilemap:undefined}:l))throw new Error('Show and unlock every target layer and group.');return l;});}
+export function layerHistoryBytes(before:Layer[],after:Layer[],extra=0){const buffers=new Set<Uint8Array|Uint8ClampedArray|Int16Array>([...tilemapBuffers([...before,...after]),...[...before,...after].flatMap(l=>[...Object.values(l.cels),...(l.mask?[l.mask.values]:[])])]);return [...buffers].reduce((n,p)=>n+p.byteLength,0)+(before.length+after.length)*2048+extra;}
 /** Immutable-source edits: linked peers outside a cel range never change. */
 export function prepareLayerWorkflow(doc:PixelDocument,input:LayerWorkflow,budget=8*1024*1024):LayerWorkflowPlan {
  // Copy all options, including caller-owned typed arrays, before retaining a plan.
  const o=structuredClone(input);if(!o||!['mask','mask-state','mask-transform','effects','bake-effects','cel-transfer','hold'].includes(o.kind))throw new Error('Unknown layer workflow.');
  const layers=doc.layers.map(l=>copyLayer(doc,l));
  if('layerId' in o){const source=selected(doc,[o.layerId],true)[0],l=layers.find(l=>l.id===o.layerId)!;
-  if((source.text||source.adjustment)&&(o.kind==='bake-effects'||o.kind==='mask-state'&&o.action==='bake'))throw new Error('Rasterize text or flatten adjustment layers before baking masks/effects.');
+  if((source.text||source.adjustment||source.tilemap)&&(o.kind==='bake-effects'||o.kind==='mask-state'&&o.action==='bake'))throw new Error('Rasterize text/tilemaps or flatten adjustment layers before baking masks/effects.');
   if(o.kind==='mask'){
    if(!['white','black','alpha','coverage','current'].includes(o.source))throw new Error('Choose a mask source.');
    let c:Coverage={width:doc.width,height:doc.height,values:new Uint8Array(doc.width*doc.height)};

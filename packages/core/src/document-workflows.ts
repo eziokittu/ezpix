@@ -4,7 +4,7 @@ import {groupAncestors} from './groups.js';
 const gray=(r:number,g:number,b:number)=>Math.floor((299*r+587*g+114*b+500)/1000);
 const grayHex=(c:string)=>{const n=gray(parseInt(c.slice(1,3),16),parseInt(c.slice(3,5),16),parseInt(c.slice(5),16));return '#'+n.toString(16).padStart(2,'0').repeat(3);};
 /** Internal draft mutation only. Full RGBA bytes remain editable; this is not a persistent storage mode. */
-export function sourceGrayscale(doc:PixelDocument){
+export function sourceGrayscale(doc:PixelDocument){if(doc.layers.some(l=>l.tilemap))throw Error('Rasterize tilemap layers before changing source colour policy.');
  for(const l of doc.layers){const changed=Object.values(l.cels).some(p=>p.some((v,i)=>i%4<3&&v!==gray(p[i-i%4],p[i-i%4+1],p[i-i%4+2])))||!!l.text&&l.text.color.slice(0,3).some(v=>v!==gray(...l.text!.color.slice(0,3) as [number,number,number]));if(changed&&(l.locked||groupAncestors(doc,l.groupId).some(g=>g.locked)))throw new Error('Unlock every source layer and parent that needs conversion.');}
  const palette=doc.palette.map(grayHex);if(doc.paletteOrganisation?.locked.some(i=>palette[i]!==doc.palette[i]))throw new Error('Unlock coloured palette slots before converting source colours.');
  for(const l of doc.layers){const seen=new Map<Uint8ClampedArray,Uint8ClampedArray>();for(const id of Object.keys(l.cels)){const src=l.cels[id];let p=seen.get(src);if(!p){p=src.slice();for(let i=0;i<p.length;i+=4){const n=gray(p[i],p[i+1],p[i+2]);p[i]=p[i+1]=p[i+2]=n;}seen.set(src,p);}l.cels[id]=p;}if(l.text){const c=l.text.color,n=gray(c[0],c[1],c[2]);l.text={...l.text,color:[n,n,n,c[3]]};}}
@@ -23,6 +23,7 @@ export function transferDocument(target:PixelDocument,source:PixelDocument,desti
   if(source.outputMode)throw new Error('Use flattened frames or return source output to RGBA for raw layer transfer.');
   if(target.frames.length!==source.frames.length)throw new Error('Raw layer transfer requires equal frame counts.');
   const l=source.layers.find(l=>l.id===source.activeLayerId)!;if(l.adjustment)throw new Error('Adjustment layers cannot move independently of their backdrop.');
+  if(l.tilemap)throw new Error('Rasterize a tilemap before raw layer transfer, or transfer flattened frames/reference. Save EzPix to retain editable shared tiles.');
   if(l.groupId)throw new Error('Ungroup the source layer or transfer flattened frames to preserve group context.');
   checkCelBudget(target.width,target.height,target.layers.length+1,target.frames.length);
   const seen=new Map<Uint8ClampedArray,Uint8ClampedArray>(),cels:Record<string,Uint8ClampedArray>={};source.frames.forEach((f,i)=>{const p=l.cels[f.id];if(!seen.has(p))seen.set(p,editingPixels(target,p));cels[target.frames[i].id]=seen.get(p)!;});

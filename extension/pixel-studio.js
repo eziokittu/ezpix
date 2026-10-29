@@ -1,3 +1,4 @@
+import {mountTilemapPanel} from '../packages/core/dist/tilemap-ui.js';
 import {
   createDocument, decodeProject, composite, activeLayer, rasterCel, animationAtTime,
   exportAssets, defaultAssetExport, encodeAseprite, asepriteExportWarnings, decodeAseprite,
@@ -32,7 +33,7 @@ export function mountPixelStudio(host, { onHandoff }) {
           <button data-ps-tool="select" aria-pressed="false" title="Select (M)">Select</button><button data-ps-transform title="Transform the full selected cel">Transform</button>
         </div>
         <div class="ps-viewport" data-ps-viewport><div class="ps-surface" data-ps-surface><canvas data-ps-canvas tabindex="0" aria-label="Pixel artwork"></canvas><div class="ps-grid" data-ps-overlay></div></div></div>
-        <aside class="ps-inspector" aria-label="Studio inspector">
+        <aside class="ps-inspector" aria-label="Studio inspector"><div data-tilemap-inspector></div>
           <section><h2>Layers</h2><div data-ps-layers class="ps-layer-list"></div>
             <div class="ps-button-row"><button data-ps-add-layer title="Add layer">+</button><button data-ps-copy-layer title="Duplicate layer">Duplicate</button><button data-ps-delete-layer title="Delete layer">Delete</button></div>
             <label>Layer name<input data-ps-layer-name maxlength="80"></label><label>Opacity <input data-ps-opacity type="range" min="0" max="255" value="255"></label>
@@ -55,6 +56,8 @@ export function mountPixelStudio(host, { onHandoff }) {
   const status = text => { q('[data-ps-status]').textContent = text; };
   let tool = 'pencil', slot = 0, gesture = null, drawFrame = 0, playing = 0, playStart = 0, disposed = false, loadJob = 0, saveTimer, autosave = false, recoveryEpoch = 0, exporting = false, dialogGeneration = 0;
   let draftId = crypto.randomUUID();
+  const tilemaps=mountTilemapPanel(q('[data-tilemap-inspector]'),{getEditor:()=>session.editor,canvas:()=>canvas,changed:()=>{session.changed();render();scheduleSave();},status,blocked:()=>Boolean(playing)||dialog.open});
+  dialog.addEventListener('close',()=>tilemaps.refresh());
   const fileName = () => (session.document.name.replace(/[^a-z0-9_-]+/gi, '-').slice(0, 60) || 'artwork');
   const report = error => {
     const message = error instanceof Error ? error.message : 'Studio operation failed. Your current artwork is retained.';
@@ -68,7 +71,7 @@ export function mountPixelStudio(host, { onHandoff }) {
   const doc = () => session.document;
   function stopPlayback() { cancelAnimationFrame(playing); playing = 0; q('[data-ps-play]').textContent = 'Play'; }
   function cancelGesture() { gesture = null; cancelAnimationFrame(drawFrame); drawFrame = 0; renderCanvas(); }
-  function ready() { stopPlayback(); cancelGesture(); loadJob++; }
+  function ready() { stopPlayback(); cancelGesture(); tilemaps.suspend(); loadJob++; }
   function action(fn, message = 'Artwork updated. Undo restores the previous edit.') {
     try { ready(); const changed = fn(); render(); if (changed) { status(message); scheduleSave(); } }
     catch (error) { render(); report(error); }
@@ -105,7 +108,8 @@ export function mountPixelStudio(host, { onHandoff }) {
     const viewport = q('[data-ps-viewport]'), fit = Math.max(1, Math.min(20, Math.floor(Math.min((viewport.clientWidth - 40) / doc().width, (viewport.clientHeight - 40) / doc().height))));
     const zoom = q('[data-ps-zoom]').value === 'fit' ? fit : Number(q('[data-ps-zoom]').value);
     surface.style.width = doc().width * zoom + 'px'; surface.style.height = doc().height * zoom + 'px';
-    q('[data-ps-overlay]').style.backgroundSize = `${zoom}px ${zoom}px`;
+    const map=activeLayer(doc()).tilemap;
+    q('[data-ps-overlay]').style.backgroundSize = `${zoom*(map?.tileset.width??1)}px ${zoom*(map?.tileset.height??1)}px`;
     q('[data-ps-overlay]').hidden = !q('[data-ps-grid]').checked || zoom < 5;
   }
   function button(text, onClick, selected = false) {
@@ -113,6 +117,7 @@ export function mountPixelStudio(host, { onHandoff }) {
   }
   function render() {
     const document = doc(), layer = activeLayer(document);
+    tilemaps.refresh();
     renderCanvas();
     q('[data-ps-name]').value = document.name;
     q('[data-ps-info]').textContent = `${document.width} × ${document.height} · ${document.layers.length} layers · ${document.frames.length} frames`;
@@ -140,7 +145,9 @@ export function mountPixelStudio(host, { onHandoff }) {
     });
     const indexed = Boolean(document.indexed); q('[data-ps-color]').disabled = indexed; q('[data-ps-alpha]').disabled = indexed;
     if (indexed) { q('[data-ps-color]').value = '#' + colors[slot].slice(0, 3).map(v => v.toString(16).padStart(2, '0')).join(''); q('[data-ps-alpha]').value = colors[slot][3]; }
-    q('[data-ps-mode]').textContent = indexed ? 'Indexed: choose an exact slot above. Duplicate and unused slots are retained. Erase uses the designated clear slot.' : 'RGBA · Pencil replaces complete colour and alpha bytes. Pick samples the raw selected layer.';
+    const map=Boolean(layer.tilemap);
+    q('[data-ps-pixel]').disabled=map; q('[data-ps-transform]').disabled=map;
+    q('[data-ps-mode]').textContent = map ? 'Tilemap: choose shared tiles and map tools in the inspector. Canvas strokes place tile references; shared tile edits update all placements.' : indexed ? 'Indexed: choose an exact slot above. Duplicate and unused slots are retained. Erase uses the designated clear slot.' : 'RGBA · Pencil replaces complete colour and alpha bytes. Pick samples the raw selected layer.';
     q('[data-ps-palette-title]').textContent = indexed ? 'Indexed slots' : 'Palette';
   }
   function renderPaletteSelection() { q('[data-ps-palette]').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(Boolean(doc().indexed) && Number(b.dataset.slot) === slot))); }
@@ -370,6 +377,6 @@ export function mountPixelStudio(host, { onHandoff }) {
     review,
     suspend() { ready(); },
     get dirty() { return session.dirty; },
-    dispose() { disposed = true; ready(); clearTimeout(saveTimer); resize.disconnect(); document.removeEventListener('keydown', keydown); removeEventListener('beforeunload', beforeUnload); host.replaceChildren(); },
+    dispose() { disposed = true; ready(); tilemaps.dispose(); clearTimeout(saveTimer); resize.disconnect(); document.removeEventListener('keydown', keydown); removeEventListener('beforeunload', beforeUnload); host.replaceChildren(); },
   };
 }

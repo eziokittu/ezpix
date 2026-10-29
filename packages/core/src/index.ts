@@ -1,3 +1,6 @@
+import {copyTilemap,tilemapBuffers,validateTilemapLayers} from './tilemap-layers.js';
+export * from './tilemap-layers.js';
+export * from './tilemap-export.js';
 import {prepareIndexedSelection} from './indexed-selection.js';
 import {indexedGeometryAuthored} from './indexed-geometry.js';
 export * from './indexed-selection.js';
@@ -211,7 +214,7 @@ export class PixelEditor {
   private layerState():LayerState {const doc=this.document;return {width:doc.width,height:doc.height,conversion:doc.conversion,layers:doc.layers.map(l=>copyLayer(doc,l)),activeLayerId:doc.activeLayerId,frames:doc.frames.map(f=>({...f})),activeFrameId:doc.activeFrameId,groups:doc.groups.map(g=>({...g})),tags:doc.tags.map(t=>({...t}))}; }
   private restore(state:LayerState) {const doc=this.document;doc.width=state.width;doc.height=state.height;if(state.conversion)doc.conversion=state.conversion;else delete doc.conversion;doc.tags=state.tags.map(t=>({...t}));doc.groups=state.groups.map(g=>({...g}));doc.frames=state.frames.map(f=>({...f}));doc.activeFrameId=state.activeFrameId;doc.layers=state.layers.map(l=>copyLayer(doc,l));doc.activeLayerId=state.activeLayerId; }
   private record(command:Command) {
-    try{validateIndexedDocument(this.document);validateEditingPolicy(this.document);}catch(error){this.restoreCommand(command,'before');throw error;}
+    try{validateTilemapLayers(this.document);validateIndexedDocument(this.document);validateEditingPolicy(this.document);}catch(error){this.restoreCommand(command,'before');throw error;}
     this.bytes-=this.redoStack.reduce((n,c)=>n+c.bytes,0);this.redoStack=[];
     this.undoStack.push(command);this.bytes+=command.bytes;
     while(this.bytes>this.historyBudget||this.undoStack.length>100){this.bytes-=this.undoStack.shift()!.bytes;this.evicted=true;}
@@ -219,7 +222,7 @@ export class PixelEditor {
   private changeLayers(change:()=>boolean) {
     this.commit();const before=this.layerState();if(!change())return false;const after=this.layerState();
     // Snapshots share pixel buffers; budget counts every buffer retained by a command.
-    const buffers=new Set([...before.layers,...after.layers].flatMap(l=>[...Object.values(l.cels),...(l.mask?[l.mask.values]:[])]));
+    const buffers=new Set<Uint8Array|Uint8ClampedArray|Int16Array>([...tilemapBuffers([...before.layers,...after.layers]),...[...before.layers,...after.layers].flatMap(l=>[...Object.values(l.cels),...(l.mask?[l.mask.values]:[])])]);
     this.record({kind:'layers',before,after,bytes:[...buffers].reduce((n,p)=>n+p.byteLength,0)+[...before.layers,...after.layers].reduce((n,l)=>n+(l.effects?.length??0)*128+(l.text?1024:0),0)+[...before.groups,...after.groups].reduce((n,g)=>n+(g.effects?.length??0)*128,0)+(before.layers.length+after.layers.length+before.frames.length+after.frames.length+before.groups.length+after.groups.length+before.tags.length+after.tags.length)*256});return true;
   }
   addLayer(duplicate=false) {
@@ -228,7 +231,7 @@ export class PixelEditor {
     return this.changeLayers(()=>{const doc=this.document,current=activeLayer(doc);let next=1;while(doc.layers.some(l=>l.id===`layer-${next}`))next++;const id=`layer-${next}`;
       const clones=new Map<Uint8ClampedArray,Uint8ClampedArray>();const clone=(p:Uint8ClampedArray)=>{if(!clones.has(p))clones.set(p,p.slice());return clones.get(p)!;};
       const layer=makeLayer(doc,id,duplicate?`${current.name.slice(0,70)} copy`:`Layer ${doc.layers.length+1}`,true,Object.fromEntries(doc.frames.map(f=>[f.id,duplicate?clone(current.cels[f.id]):new Uint8ClampedArray(0)])));
-      doc.layers.splice(doc.layers.indexOf(current)+1,0,layer);doc.activeLayerId=id;layer.groupId=current.groupId;if(duplicate){layer.locked=current.locked;layer.opacity=current.opacity;layer.blendMode=current.blendMode;if(current.mask)layer.mask={...current.mask,values:current.mask.values.slice()};if(current.effects)layer.effects=current.effects.map(e=>({...e}));if(current.text)layer.text=structuredClone(current.text);if(current.adjustment)layer.adjustment=true;}return true;});
+      doc.layers.splice(doc.layers.indexOf(current)+1,0,layer);doc.activeLayerId=id;layer.groupId=current.groupId;if(duplicate){layer.locked=current.locked;layer.opacity=current.opacity;layer.blendMode=current.blendMode;if(current.mask)layer.mask={...current.mask,values:current.mask.values.slice()};if(current.effects)layer.effects=current.effects.map(e=>({...e}));if(current.tilemap)layer.tilemap=copyTilemap(current.tilemap);if(current.text)layer.text=structuredClone(current.text);if(current.adjustment)layer.adjustment=true;}return true;});
   }
   deleteLayer() {
     if(this.document.layers.length===1)throw new Error('Keep at least one layer.');
@@ -308,7 +311,7 @@ export class PixelEditor {
   }
   mergeDown(){const doc=this.document,at=doc.layers.indexOf(activeLayer(doc)),top=doc.layers[at],bottom=doc.layers[at-1];
     if(!bottom)throw new Error('Select a layer above another layer.');if(top.groupId!==bottom.groupId||!layerEditable(doc,top)||!layerEditable(doc,bottom))throw new Error('Show and unlock both layers before merging.');
-    if(top.text||top.adjustment||bottom.text||bottom.adjustment)throw new Error('Rasterize text or flatten adjustment layers before merging.');
+    if(top.text||top.adjustment||top.tilemap||bottom.text||bottom.adjustment||bottom.tilemap)throw new Error('Rasterize text or flatten adjustment layers before merging.');
     if(top.mask||bottom.mask||top.effects?.length||bottom.effects?.length)throw new Error('Bake layer masks and live effects before merging.');
     if(top.blendMode!=='normal'||bottom.blendMode!=='normal')throw new Error('Set both layers to Normal before merging. Blends depend on the full backdrop; use flattened export to bake the appearance.');
     const cels=Object.fromEntries(doc.frames.map(f=>[f.id,composite({...doc,layers:[bottom,top],groups:[]},f.id)]));

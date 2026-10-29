@@ -1,4 +1,4 @@
-# @ezpix/core 0.461.0
+# @ezpix/core 0.462.0
 
 Original deterministic RGBA editor and image conversion engine. No runtime
 dependencies or inference. Build with the workspace `npm run build`.
@@ -2130,3 +2130,27 @@ choose an existing zero-alpha slot, or append one unused transparent slot while
 retaining every original slot. An opaque full 256-slot table cannot fit the sparse
 editor's required clear role. No palette matching, quantization or RGBA remapping
 occurs. Project save/reopen preserves the chosen role and all original raw slots.
+
+## Integrated tilemaps, 0.462.0
+
+`Layer.tilemap` stores static row-major exact tile references/flags and a shared
+RGBA tileset. `TilemapOperation` authored plans capture, share, paint/fill/erase,
+edit tile pixels, append/duplicate/reorder/remove tiles and explicitly rasterize.
+Copy-on-write global tile edits update every map user atomically; stale/private
+plans and Undo memory budgets include all tile/map arrays. Maps participate in
+layer compositing, visibility, opacity, groups, blends, masks and live effects.
+Ordinary projects still write v16; live map projects write v17 with a shared
+root catalog. Readers accept v1-v17. Limits: four sets/256 total slots/1 MiB tile
+bytes/65536 total cells, tile axes 1-64 dividing the dense canvas. No indexed
+remapping or implicit baking. Unsupported raw/native workflows reject explicitly.
+
+`exportTilemapBundle` produces finite orthogonal Tiled JSON plus exact atlas PNGs
+and source.ezpix without conversion sources. Static map-layer order/visibility/
+opacity and unsigned global-ID H/V/D bits survive. Map groups, enabled masks/
+effects, non-Normal blends, mixed tile sizes and output conversion reject this
+export; other non-map content is omitted from TMJ and retained in source.ezpix.
+`mountTilemapPanel` from `@ezpix/core/tilemap-ui` shares the inspector and
+cancellation-safe map pointer/keyboard-coordinate controls across both products.
+Full schema, restrictions, directions and remaining capabilities are documented
+in sibling glitchbong/docs/ezpix-tilemaps.md. This is dense/static RGBA tilemaps
+with Tiled export, not animated/indexed/sparse maps or a Tiled importer.

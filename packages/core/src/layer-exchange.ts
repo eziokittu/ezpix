@@ -12,7 +12,7 @@ export function layerExportSnapshot(source:PixelDocument,mode:LayerExportMode){
  if(doc.layers.some(l=>l.locked))warnings.push('Layer edit locks are omitted in this native format.');
  if((doc.indexed||doc.outputMode||doc.editingMode)&&mode==='selected-frame')fail('Document output requires frames as flattened layers, PNG or EzPix.');
  if(doc.groups.length&&mode==='selected-frame')fail('Native layered group export is unsupported. Choose animation frames as flattened layers, PNG or EzPix.');
- if(mode==='selected-frame'&&doc.layers.some(l=>l.text||l.adjustment||l.mask||l.effects?.length))fail('Layer masks/live effects require baking or frames as flattened layers.');
+ if(mode==='selected-frame'&&doc.layers.some(l=>l.text||l.adjustment||l.tilemap||l.mask||l.effects?.length))fail('Tilemaps, live layers and masks/effects require baking or frames as flattened layers.');
  if(mode==='selected-frame'&&doc.layers.some(l=>l.blendMode!=='normal'))fail('Native layered blend export is unsupported. Choose animation frames as flattened layers, PNG or EzPix.');
  if(mode==='selected-frame'){
   if(doc.frames.length>1)warnings.push(`Only selected frame ${doc.frames.findIndex(f=>f.id===doc.activeFrameId)+1} is exported.`);

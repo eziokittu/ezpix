@@ -1,3 +1,4 @@
+import {renderTilemap} from './tilemap-layers.js';
 import {renderBitmapText,validateBitmapText} from './bitmap-text.js';
 import type {Layer} from './document.js';
 export interface LayerMask {enabled:boolean;values:Uint8ClampedArray}
@@ -22,7 +23,7 @@ const byte=(v:number)=>Math.max(0,Math.min(255,Math.floor(v+.5)));
 export function renderLayerPixels(layer:Layer,width:number,height:number,frameId:string,includeMask=true):Uint8ClampedArray {
  let p=layer.cels[frameId];if(!p)throw new Error('Cel is missing.');
  if(!p.length)p=new Uint8ClampedArray(width*height*4);
- if(layer.text)p=renderBitmapText(width,height,layer.text);p=applyLiveEffects(p,width,height,layer.effects);
+ if(layer.tilemap)p=renderTilemap(layer.tilemap,width,height);if(layer.text)p=renderBitmapText(width,height,layer.text);p=applyLiveEffects(p,width,height,layer.effects);
  if(includeMask&&layer.mask?.enabled){p=p.slice();for(let i=0;i<layer.mask.values.length;i++)p[i*4+3]=byte(p[i*4+3]*layer.mask.values[i]/255);}
  return p;
 }
