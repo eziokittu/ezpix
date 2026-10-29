@@ -165,7 +165,7 @@ All artwork processing is local. Production website transfer is disabled in this
 
 Files in `dist/store-assets/`:
 
-- `ezpix-insta-icon-128.png`: store icon, 128x128, original E mark.
+- `ezpix-insta-icon-128.png`: store icon, 128x128, original pixel canvas and pencil mark.
 - `01-pixel-studio-1280x800.png`: main editor.
 - `02-layers-animation-1280x800.png`: frames and timing.
 - `03-shared-tilemaps-1280x800.png`: map editing/shared tiles.

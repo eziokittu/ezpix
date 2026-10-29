@@ -36,7 +36,7 @@ try{
  await copyFile('extension/icons/ezpix-insta-128.png',resolve(out,'ezpix-insta-icon-128.png'));
  const publicPolicy=(await readFile('extension/privacy.html','utf8')).replace('<link rel="stylesheet" href="app.css">','<style>'+await readFile('extension/app.css','utf8')+'</style>').replace(' · <a href="app.html">Back to studio</a>','');
  await writeFile(resolve(out,'privacy.html'),publicPolicy);
- await writeFile(resolve(out,'ARTWORK.txt'),'Listing screenshot artwork and EzPIX Insta E mark are original authored fixtures created for this project. No third-party images or fonts were used.\n');
+ await writeFile(resolve(out,'ARTWORK.txt'),'Listing screenshot artwork and the EzPIX Insta pixel canvas and pencil icon are original artwork created for this project. No third-party images or fonts were used.\n');
  assert.deepEqual(errors,[]);assert.deepEqual(network,[]);checks.push('renamed offline privacy, limited-use disclosure and zero HTTP requests/page errors');
  await writeFile(resolve(evidence,'result.json'),JSON.stringify({version:manifest.version,name:manifest.name,browser:context.browser().version(),checks,errors,network},null,2));console.log('PASS',checks.length,'Insta launch/branding/store-asset groups');
 }catch(error){if(page)await page.screenshot({path:resolve(evidence,'failure.png'),fullPage:true}).catch(()=>{});throw error;}finally{await context.close();}
