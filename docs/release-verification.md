@@ -11,7 +11,7 @@ Separate external gates remain:
 - Endurance, measured process/worker/GPU peaks, stroke latency and minimum-hardware qualification before budget increases.
 - Human external-editor and Unity/Godot importer/template roundtrips.
 - Owner product-licence/name and third-party rights decisions; retain all existing starter artwork provenance.
-- Matching hosted engine/privacy/help checks after deployment, installed assigned-ID extension update and update-retention behaviour.
+- Hosted matching-engine/privacy/help and all 15 production unpacked capture/handoff groups passed against the public HTTPS site on 30 October 2026. Installed assigned-ID store update and update-retention behaviour remain pending.
 - Store update review/approval and account-specific declarations, including the justified sidePanel permission.
 
 Do not equate local builds, original-fixture browser tests or file readers with these external results. Original sources, downloads and manual artwork must survive cancellation/rejection according to their documented workflows. Protected-content failures remain useful errors.
