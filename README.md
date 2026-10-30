@@ -1,6 +1,6 @@
 # EzPIX Insta and EzPix shared core
 
-Current core/extension: **0.465.0**. EzPIX Insta captures and converts media in a persistent Chrome side panel. Manual Pixel studio lives at https://glitchbong.com/tools/ezpix.
+Current extension: **0.465.1**; shared engine: **0.465.0**. EzPIX Insta captures and converts media in a floating Chrome window. Manual Pixel studio lives at https://glitchbong.com/tools/ezpix.
 
 The published store item is https://chromewebstore.google.com/detail/ezpix-insta/eijjjhokfogdfcnednolghbegpddneci. This repository has no remote; update ZIPs are prepared locally. Upload the new version to the same store item.
 
@@ -8,9 +8,9 @@ New sources preview the full image with background preserved. Select smaller geo
 
 ## Build and verification
 
-Run `npm ci`, `npm test`, `npm run package:extension`. Load `dist/extension` for production or `dist/extension-dev` for http://localhost:3791. Click the toolbar icon on the page before capturing to grant activeTab. Permissions are activeTab, scripting, alarms and sidePanel, without host access.
+Run `npm ci`, `npm test`, `npm run package:extension`. Load `dist/extension` for production or `dist/extension-dev` for http://localhost:3791. Click the toolbar icon on the page before capturing to grant activeTab. Permissions are activeTab, scripting and alarms, without host access.
 
-`npm run release:local` runs the full current local gate: shared tests and package sync, website build/lint/routes, production ZIP, side-panel media/capture/transfer, raw indexed PNG, listing assets and independent readers. Set `EZPIX_CHROMIUM_PATH` if needed. Generated artifacts, browser profiles and downloads stay ignored. Older phase/UI scripts are historical reproductions and may target retired layouts.
+`npm run release:local` runs the full current local gate: shared tests and package sync, website build/lint/routes, production ZIP, floating-window media/capture/transfer, raw indexed PNG, listing assets and independent readers. Set `EZPIX_CHROMIUM_PATH` if needed. Generated artifacts, browser profiles and downloads stay ignored. Older phase/UI scripts are historical reproductions and may target retired layouts.
 
 ## Current references
 
@@ -24,3 +24,5 @@ Run `npm ci`, `npm test`, `npm run package:extension`. Load `dist/extension` for
 - [External qualification gates](docs/release-verification.md)
 
 Website develops on GlitchBong ezpix and merges to master; core/extension uses this repository's main. Shared algorithms belong in packages/core. The website consumes a versioned vendor archive with provenance, never sibling runtime imports. Dense schemas remain v16 ordinary/v17 tilemaps, readers v1-v17; sparse remains tiled v5/readers v1-v5.
+
+The empty floating window is compact. With media, source and pixel preview are stacked on the left, exactly one settings section stays expanded in the independently scrolling right column, and exports span the bottom. The window itself does not scroll. Load dist/extension locally and click Reload after rebuilding.

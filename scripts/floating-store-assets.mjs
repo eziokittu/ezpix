@@ -26,9 +26,9 @@ try{
  await expand('[data-focus-palette]');await expand('[data-focus-width]');await page.locator('[data-focus-width]').scrollIntoViewIfNeeded();await shot('02-pixel-grid');
  await expand('[data-focus-method]');await page.locator('[data-focus-method]').selectOption('chroma');await page.locator('[data-focus-pick]').click();const b=await page.locator('[data-focus-source]').boundingBox();await page.mouse.move(b.x+b.width*.5,b.y+b.height*.25);await shot('03-background-picker');await page.keyboard.press('Escape');await page.locator('[data-focus-method]').selectOption('crop');
  await expand('[data-photo="brightness"]');await page.locator('[data-photo="brightness"]').scrollIntoViewIfNeeded();await shot('04-photo-adjustments');
- await page.locator('details').evaluateAll(els=>els.forEach(el=>el.open=false));await page.locator('[data-focus-download]:not([disabled])').waitFor();await page.locator('[data-focus-download]').scrollIntoViewIfNeeded();await shot('05-download');
+ await expand('[data-focus-fps]');await page.locator('[data-focus-download]:not([disabled])').waitFor();await shot('05-download');
  await copyFile('extension/icons/ezpix-insta-128.png',resolve(out,'ezpix-insta-icon-128.png'));
  const policy=(await readFile('extension/privacy.html','utf8')).replace('<link rel="stylesheet" href="app.css">','<style>'+await readFile('extension/app.css','utf8')+'</style>');await writeFile(resolve(out,'privacy.html'),policy);
- await writeFile(resolve(out,'ARTWORK.txt'),'Original canvas/pencil icon, promo vectors and landscape fixture authored locally for EzPIX Insta. Screenshots show the packaged 0.465.0 capture/conversion UI. No third-party images or bundled fonts.\n');
+ await writeFile(resolve(out,'ARTWORK.txt'),'Original canvas/pencil icon, promo vectors and landscape fixture authored locally for EzPIX Insta. Screenshots show the packaged floating capture/conversion UI. No third-party images or bundled fonts.\n');
  console.log('Generated five current 1280x800 capture/conversion screenshots, shared icon and standalone privacy policy.');
 }finally{await context.close();}

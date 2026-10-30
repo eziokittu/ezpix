@@ -1,3 +1,4 @@
+import {openFloatingStudio,captureSource,presentFloatingStudio,resizeFloatingStudio} from './floating-window.js';
 import {waitForTabReady} from './navigation.js';
 import { state, purgeExpired, updateState } from './db.js';
 import { selectOnPage } from './selector.js';
@@ -11,13 +12,13 @@ const arm=async()=>{const items=await Promise.all(['capture','transfer','selecti
 chrome.alarms.onAlarm.addListener(()=>{void purgeExpired().then(arm);});
 chrome.tabs.onRemoved.addListener(id=>{void updateState('transfer',record=>record?.tabId===id?null:record);});
 let busy=false;
-chrome.action.onClicked.addListener(tab=>{if(tab.windowId!==undefined)void chrome.sidePanel.open({windowId:tab.windowId});});
-async function notifyCapture(){try{await chrome.runtime.sendMessage({type:'CAPTURE_READY'});}catch{/* The next panel opening reads the saved capture. */}}
+chrome.action.onClicked.addListener(tab=>{if(tab.id!==undefined&&tab.windowId!==undefined)void openFloatingStudio(tab);});
+async function notifyCapture(type='CAPTURE_READY'){try{await chrome.runtime.sendMessage({type});}catch{/* Reopening reads the retained capture. */}await presentFloatingStudio();}
 function internal(sender,page) { if(sender.id!==chrome.runtime.id || sender.url!==chrome.runtime.getURL(page))throw new Error('Request denied.'); }
 async function start(message,sender) {
   internal(sender,'app.html');
   if(!['region','element','visible'].includes(message.mode))throw new Error('Invalid capture mode.');
-  const [tab]=await chrome.tabs.query({active:true,lastFocusedWindow:true});
+  const tab=await captureSource();
   if(!tab?.id || !/^https?:/.test(tab.url??''))throw new Error('Open a normal HTTP or HTTPS webpage first. Browser and extension pages cannot be selected.');
   const nonce=token(); await state('selection',{tabId:tab.id,windowId:tab.windowId,nonce,expires:Date.now()+EXPIRY});await arm();
   if(message.mode==='visible') {
@@ -62,9 +63,10 @@ async function capture(message,sender) {
 chrome.runtime.onMessage.addListener((message,sender,reply)=>{
   (async()=>{
     await purgeExpired();
+    if(message?.type==='STUDIO_LAYOUT'){internal(sender,'app.html');return await resizeFloatingStudio(message.mode,message.area);}
     if(message?.type==='START')return await start(message,sender);
     if(message?.type==='SELECTED')return await capture(message,sender);
-    if(message?.type==='CANCEL'){const pending=await state('selection');if(pending?.nonce===message.nonce&&sender.tab?.id===pending.tabId)await state('selection',null);return {status:'cancelled'};}
+    if(message?.type==='CANCEL'){const pending=await state('selection');if(pending?.nonce===message.nonce&&sender.tab?.id===pending.tabId){await state('selection',null);await notifyCapture('CAPTURE_CANCELLED');}return {status:'cancelled'};}
     if(message?.type==='HANDOFF') {
       if(!WEBSITE_HANDOFF_ENABLED)throw Error('Website transfer is unavailable in this standalone release. Download your project instead.');
       internal(sender,'app.html');
