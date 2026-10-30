@@ -6,8 +6,8 @@ for(const dev of [false,true]) {
   const out=resolve(dev?'dist/extension-dev':'dist/extension');
   if(dirname(out)!==resolve('dist')||!['extension','extension-dev'].includes(basename(out)))throw Error('Refusing to clean an unexpected build path.');
   await rm(out,{recursive:true,force:true});await mkdir(out,{recursive:true});
-  await build({entryPoints:['extension/background.js','extension/popup.js','extension/app.js','extension/worker.js'],outdir:out,bundle:true,format:'esm',platform:'browser',target:'chrome120',plugins:dev?[{name:'local-website',setup(b){b.onLoad({filter:/extension[\\/]config\.js$/},()=>({contents:`export const WEBSITE_ORIGIN=${JSON.stringify(devOrigin)};export const WEBSITE_HANDOFF_ENABLED=true;`,loader:'js'}));}}]:[]});
-  for(const file of ['popup.html','app.html','app.css','handoff.html','privacy.html','pixel-studio.css'])await copyFile(`extension/${file}`,resolve(out,file));
+  await build({entryPoints:['extension/background.js','extension/app.js','extension/worker.js'],outdir:out,bundle:true,format:'esm',platform:'browser',target:'chrome120',plugins:dev?[{name:'local-website',setup(b){b.onLoad({filter:/extension[\\/]config\.js$/},()=>({contents:`export const WEBSITE_ORIGIN=${JSON.stringify(devOrigin)};export const WEBSITE_HANDOFF_ENABLED=true;`,loader:'js'}));}}]:[]});
+  for(const file of ['app.html','app.css','handoff.html','privacy.html'])await copyFile(`extension/${file}`,resolve(out,file));
   await mkdir(resolve(out,'icons'),{recursive:true});for(const size of [16,32,48,128])await copyFile(`extension/icons/ezpix-insta-${size}.png`,resolve(out,`icons/ezpix-insta-${size}.png`));
   await copyFile('packages/core/dist/converter.css',resolve(out,'converter.css'));
   const manifest=JSON.parse(await readFile('extension/manifest.json','utf8'));

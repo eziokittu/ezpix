@@ -11,9 +11,11 @@ const arm=async()=>{const items=await Promise.all(['capture','transfer','selecti
 chrome.alarms.onAlarm.addListener(()=>{void purgeExpired().then(arm);});
 chrome.tabs.onRemoved.addListener(id=>{void updateState('transfer',record=>record?.tabId===id?null:record);});
 let busy=false;
+chrome.action.onClicked.addListener(tab=>{if(tab.windowId!==undefined)void chrome.sidePanel.open({windowId:tab.windowId});});
+async function notifyCapture(){try{await chrome.runtime.sendMessage({type:'CAPTURE_READY'});}catch{/* The next panel opening reads the saved capture. */}}
 function internal(sender,page) { if(sender.id!==chrome.runtime.id || sender.url!==chrome.runtime.getURL(page))throw new Error('Request denied.'); }
 async function start(message,sender) {
-  internal(sender,'popup.html');
+  internal(sender,'app.html');
   if(!['region','element','visible'].includes(message.mode))throw new Error('Invalid capture mode.');
   const [tab]=await chrome.tabs.query({active:true,lastFocusedWindow:true});
   if(!tab?.id || !/^https?:/.test(tab.url??''))throw new Error('Open a normal HTTP or HTTPS webpage first. Browser and extension pages cannot be selected.');
@@ -54,7 +56,7 @@ async function capture(message,sender) {
       const canvas=new OffscreenCanvas(w,h);canvas.getContext('2d').drawImage(bitmap,x,y,w,h,0,0,w,h);crop=await canvas.convertToBlob({type:'image/png'});
     } finally {bitmap.close();}
     await state('capture',{blob:crop,expires:Date.now()+EXPIRY});await arm();
-    await chrome.tabs.create({url:chrome.runtime.getURL('app.html')});return {status:'captured'};
+    await notifyCapture();return {status:'captured'};
   } finally {busy=false;}
 }
 chrome.runtime.onMessage.addListener((message,sender,reply)=>{
@@ -77,7 +79,7 @@ chrome.runtime.onMessage.addListener((message,sender,reply)=>{
       return {status:'opened'};
     }
     throw new Error('Unsupported request.');
-  })().then(reply,async error=>{if(message?.type==='SELECTED'){await state('capture',{error:error.message??'Capture failed.',expires:Date.now()+EXPIRY});await arm();await chrome.tabs.create({url:chrome.runtime.getURL('app.html')});}reply({error:error.message??'Capture failed. Try a different page.'});});return true;
+  })().then(reply,async error=>{if(message?.type==='SELECTED'){await state('capture',{error:error.message??'Capture failed.',expires:Date.now()+EXPIRY});await arm();await notifyCapture();}reply({error:error.message??'Capture failed. Try a different page.'});});return true;
 });
 chrome.runtime.onMessageExternal.addListener((message,sender,reply)=>{
   (async()=>{

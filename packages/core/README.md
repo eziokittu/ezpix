@@ -1,4 +1,8 @@
-# @ezpix/core 0.464.0
+# @ezpix/core
+
+The current version is defined by package.json and ENGINE_VERSION. Browser
+conversion defaults to the full image with its background kept. The Chrome
+capture-only side panel and website converter share this implementation.
 
 Original deterministic RGBA editor and image conversion engine. No runtime
 dependencies or inference. Build with the workspace `npm run build`.
@@ -1741,7 +1745,7 @@ reviewed selected-frame JPEG (white matte) and WebP using browser encoding.
 and `exportLargePng` provide separate sparse single-surface editing to 10240px per
 axis. Dense animation limits and project-v16 schema are unchanged. Tiled mode is
 not a claim that dense tools or native codecs accept 10240px layered animation.
-See the website [issues3 contract](../../../glitchbong/docs/ezpix-issues3-plan.md).
+See the website [issues3 contract](../../../glitchbong/docs/ezpix-release-local.md).
 
 Shape outlines accept brush size/tip; indexed shape operations mirror that width.
 Jumble samples existing neighbouring RGBA with a deterministic seed.

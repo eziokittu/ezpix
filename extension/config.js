@@ -1,3 +1,3 @@
-// Production launch is standalone; the localhost build keeps bridge regression coverage.
+// Explicit guarded handoff to the matching website engine.
 export const WEBSITE_ORIGIN='https://glitchbong.com';
-export const WEBSITE_HANDOFF_ENABLED=false;
+export const WEBSITE_HANDOFF_ENABLED=true;

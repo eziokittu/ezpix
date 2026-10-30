@@ -4,14 +4,14 @@ import {createHash} from 'node:crypto';
 import assert from 'node:assert/strict';
 import {writeNativeZip} from '../packages/core/dist/native-zip.js';
 import {ENGINE_VERSION} from '../packages/core/dist/index.js';
-const expected=['app.css','app.html','app.js','background.js','converter.css','handoff.html','manifest.json','popup.html','popup.js','privacy.html','pixel-studio.css','worker.js',...[16,32,48,128].map(s=>`icons/ezpix-insta-${s}.png`)].sort();
+const expected=['app.css','app.html','app.js','background.js','converter.css','handoff.html','manifest.json','privacy.html','worker.js',...[16,32,48,128].map(s=>`icons/ezpix-insta-${s}.png`)].sort();
 async function entries(dir,prefix=''){const out=[];for(const e of await readdir(dir,{withFileTypes:true})){if(e.isSymbolicLink())throw Error('Release files must not be symlinks');const name=prefix+e.name;out.push(...(e.isDirectory()?await entries(dir+'/'+e.name,name+'/'):[name]));}return out;}
 assert.deepEqual((await entries('dist/extension')).sort(),expected,'Unexpected/missing production files. Rebuild in a clean output directory.');
 const files=new Map();for(const name of expected)files.set(name,new Uint8Array(await readFile('dist/extension/'+name)));
 const manifest=JSON.parse(new TextDecoder().decode(files.get('manifest.json')));
 assert.equal(manifest.version,ENGINE_VERSION);assert.equal(manifest.manifest_version,3);
-assert.deepEqual(manifest.permissions,['activeTab','scripting','alarms']);
-assert.equal(manifest.name,'EzPIX Insta');assert.equal(manifest.externally_connectable,undefined);
+assert.deepEqual(manifest.permissions,['activeTab','scripting','alarms','sidePanel']);
+assert.equal(manifest.name,'EzPIX Insta');assert.deepEqual(manifest.externally_connectable,{matches:['https://glitchbong.com/*']});assert.equal(manifest.side_panel.default_path,'app.html');assert.equal(manifest.action.default_popup,undefined);
 assert.ok(!manifest.name.includes('development'));assert.ok(!manifest.host_permissions);
 assert.ok(new TextDecoder().decode(files.get('background.js')).includes('https://glitchbong.com'));
 const bytes=writeNativeZip(files),view=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength);
