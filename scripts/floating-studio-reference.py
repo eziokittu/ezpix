@@ -1,8 +1,8 @@
-"""Decode the actual floating-layout downloads independently of the shared core."""
+"""Decode the actual toolbar-popup downloads independently of the shared core."""
 from pathlib import Path
 import base64, json
 root = Path(__file__).resolve().parents[1]
-out = root / 'artifacts/floating-studio'
+out = root / 'artifacts/toolbar-popup'
 def pixels(name):
     doc = json.loads((out / (name + '.ezpix')).read_text())
     assert doc['engine'] == '0.465.0' and doc['version'] == 16
@@ -20,4 +20,4 @@ if (out / 'handoff-source.ezpix').exists():
     assert pixels('handoff-source') == pixels('handoff-received')
     checks.append('website handoff preserves exact dimensions and pixels without original-media metadata')
 (out / 'reference-result.json').write_text(json.dumps({'checks':checks},indent=2)+'\n')
-print('PASS independent floating-workspace downloads:', len(checks), 'groups')
+print('PASS independent toolbar-popup downloads:', len(checks), 'groups')

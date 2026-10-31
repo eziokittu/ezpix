@@ -1,4 +1,5 @@
-import {openFloatingStudio,captureSource,presentFloatingStudio,resizeFloatingStudio} from './floating-window.js';
+import {captureSource,presentPopup,consumePopupReturn} from './toolbar-popup.js';
+import {openMediaCapture,handleMediaRequest} from './media-capture.js';
 import {waitForTabReady} from './navigation.js';
 import { state, purgeExpired, updateState } from './db.js';
 import { selectOnPage } from './selector.js';
@@ -8,17 +9,16 @@ import { imageDimensions } from '../packages/core/dist/browser.js';
 import { WEBSITE_ORIGIN, WEBSITE_HANDOFF_ENABLED } from './config.js';
 const EXPIRY=10*60*1000;
 const token=()=>[...crypto.getRandomValues(new Uint8Array(32))].map(n=>n.toString(16).padStart(2,'0')).join('');
-const arm=async()=>{const items=await Promise.all(['capture','transfer','selection'].map(key=>state(key)));const times=items.filter(Boolean).map(item=>item.expires);if(times.length)await chrome.alarms.create('ezpix-expiry',{when:Math.max(Date.now()+100,Math.min(...times))});};
+const arm=async()=>{const items=await Promise.all(['capture','transfer','selection','mediaSession','popupReturn'].map(key=>state(key)));const times=items.filter(Boolean).map(item=>item.expires);if(times.length)await chrome.alarms.create('ezpix-expiry',{when:Math.max(Date.now()+100,Math.min(...times))});};
 chrome.alarms.onAlarm.addListener(()=>{void purgeExpired().then(arm);});
-chrome.tabs.onRemoved.addListener(id=>{void updateState('transfer',record=>record?.tabId===id?null:record);});
+chrome.tabs.onRemoved.addListener(id=>{void updateState('transfer',record=>record?.tabId===id?null:record);void updateState('mediaSession',record=>record?.tabId===id?null:record);});
 let busy=false;
-chrome.action.onClicked.addListener(tab=>{if(tab.id!==undefined&&tab.windowId!==undefined)void openFloatingStudio(tab);});
-async function notifyCapture(type='CAPTURE_READY'){try{await chrome.runtime.sendMessage({type});}catch{/* Reopening reads the retained capture. */}await presentFloatingStudio();}
+async function notifyCapture(windowId,tabId,type='CAPTURE_READY'){try{await chrome.runtime.sendMessage({type});}catch{/* Reopening reads the retained capture. */}await presentPopup(windowId,tabId);}
 function internal(sender,page) { if(sender.id!==chrome.runtime.id || sender.url!==chrome.runtime.getURL(page))throw new Error('Request denied.'); }
 async function start(message,sender) {
   internal(sender,'app.html');
   if(!['region','element','visible'].includes(message.mode))throw new Error('Invalid capture mode.');
-  const tab=await captureSource();
+  const tab=await captureSource(message.source);
   if(!tab?.id || !/^https?:/.test(tab.url??''))throw new Error('Open a normal HTTP or HTTPS webpage first. Browser and extension pages cannot be selected.');
   const nonce=token(); await state('selection',{tabId:tab.id,windowId:tab.windowId,nonce,expires:Date.now()+EXPIRY});await arm();
   if(message.mode==='visible') {
@@ -57,16 +57,29 @@ async function capture(message,sender) {
       const canvas=new OffscreenCanvas(w,h);canvas.getContext('2d').drawImage(bitmap,x,y,w,h,0,0,w,h);crop=await canvas.convertToBlob({type:'image/png'});
     } finally {bitmap.close();}
     await state('capture',{blob:crop,expires:Date.now()+EXPIRY});await arm();
-    await notifyCapture();return {status:'captured'};
+    await notifyCapture(pending.windowId,pending.tabId);return {status:'captured'};
   } finally {busy=false;}
 }
 chrome.runtime.onMessage.addListener((message,sender,reply)=>{
   (async()=>{
     await purgeExpired();
-    if(message?.type==='STUDIO_LAYOUT'){internal(sender,'app.html');return await resizeFloatingStudio(message.mode,message.area);}
+    if(message?.type==='RESET_STUDIO'){
+      internal(sender,'app.html');
+      const captures=await chrome.runtime.getContexts({contextTypes:['TAB'],documentUrls:[chrome.runtime.getURL('media.html')]});
+      await Promise.all(['capture','transfer','selection','mediaSession','popupReturn'].map(key=>state(key,null)));
+      await Promise.all([...new Set(captures.filter(c=>c.frameId===0&&c.tabId>=0).map(c=>c.tabId))].map(id=>chrome.tabs.remove(id).catch(()=>{})));
+      return {status:'reset'};
+    }
+    if(message?.type==='MEDIA_OPEN'){internal(sender,'app.html');const result=await openMediaCapture(message.mode,message.source);await arm();return result;}
+    if(['MEDIA_INIT','MEDIA_COMPLETE','MEDIA_CANCEL'].includes(message?.type)){const result=await handleMediaRequest(message,sender);await arm();return result;}
+    if(message?.type==='POPUP_OPEN'){
+      internal(sender,'app.html');
+      if(await consumePopupReturn(message.source))return {status:'restore'};
+      return await start({...message,mode:'visible'},sender);
+    }
     if(message?.type==='START')return await start(message,sender);
     if(message?.type==='SELECTED')return await capture(message,sender);
-    if(message?.type==='CANCEL'){const pending=await state('selection');if(pending?.nonce===message.nonce&&sender.tab?.id===pending.tabId){await state('selection',null);await notifyCapture('CAPTURE_CANCELLED');}return {status:'cancelled'};}
+    if(message?.type==='CANCEL'){const pending=await state('selection');if(pending?.nonce===message.nonce&&sender.tab?.id===pending.tabId&&sender.frameId===0&&sender.documentId===pending.documentId){await state('selection',null);await notifyCapture(pending.windowId,pending.tabId,'CAPTURE_CANCELLED');}return {status:'cancelled'};}
     if(message?.type==='HANDOFF') {
       if(!WEBSITE_HANDOFF_ENABLED)throw Error('Website transfer is unavailable in this standalone release. Download your project instead.');
       internal(sender,'app.html');
@@ -81,7 +94,7 @@ chrome.runtime.onMessage.addListener((message,sender,reply)=>{
       return {status:'opened'};
     }
     throw new Error('Unsupported request.');
-  })().then(reply,async error=>{if(message?.type==='SELECTED'){await state('capture',{error:error.message??'Capture failed.',expires:Date.now()+EXPIRY});await arm();await notifyCapture();}reply({error:error.message??'Capture failed. Try a different page.'});});return true;
+  })().then(reply,async error=>{if(message?.type==='SELECTED'){await state('capture',{error:error.message??'Capture failed.',expires:Date.now()+EXPIRY});await arm();await notifyCapture(sender.tab?.windowId,sender.tab?.id);}reply({error:error.message??'Capture failed. Try a different page.'});});return true;
 });
 chrome.runtime.onMessageExternal.addListener((message,sender,reply)=>{
   (async()=>{

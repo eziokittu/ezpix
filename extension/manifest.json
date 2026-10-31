@@ -1,15 +1,16 @@
 {
   "manifest_version": 3,
   "name": "EzPIX Insta",
-  "version": "0.465.1",
-  "minimum_chrome_version": "120",
-  "description": "Capture and convert images in a floating pixel studio. Compare source and preview, tune settings and download or open the web editor.",
+  "version": "0.465.5",
+  "minimum_chrome_version": "127",
+  "description": "Capture and convert images in a toolbar pixel studio. Compare source and preview, tune settings and download or open the web editor.",
   "permissions": [
     "activeTab",
     "scripting",
     "alarms"
   ],
   "action": {
+    "default_popup": "app.html",
     "default_title": "Open EzPIX Insta",
     "default_icon": {
       "16": "icons/ezpix-insta-16.png",

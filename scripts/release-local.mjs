@@ -43,8 +43,9 @@ try{
 
  server=spawn(process.execPath,[resolve(web,'node_modules/next/dist/bin/next'),'start','-p','3791'],{cwd:web,env,windowsHide:true,stdio:'ignore'});
  let ready=false;for(let i=0;i<120;i++){if(server.exitCode!==null)throw Error('Website QA server exited.');try{if((await fetch('http://localhost:3791/tools/ezpix')).ok){ready=true;break;}}catch{}await new Promise(done=>setTimeout(done,500));}if(!ready)throw Error('Website QA server did not start.');
- env.EZPIX_QA_WEBSITE='http://localhost:3791/tools/ezpix';
- await run('floating-capture-handoff',process.execPath,['scripts/floating-studio-qa.mjs']);
+ env.EZPIX_QA_WEBSITE='http://localhost:3791/tools/ezpix';env.EZPIX_QA_MEDIA='1';
+ await run('toolbar-popup-capture-handoff',process.execPath,['scripts/toolbar-popup-qa.mjs']);
+ await run('automatic-handoff-safeguards',process.execPath,['scripts/automatic-handoff-qa.mjs']);
  await run('raw-indexed-website',process.execPath,['scripts/raw-indexed-png-ui.mjs']);
  await run('independent-conversion', 'python', ['scripts/floating-studio-reference.py']);
  await run('independent-archive','python',['scripts/phase481-500-release.py']);
