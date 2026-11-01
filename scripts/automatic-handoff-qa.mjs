@@ -7,7 +7,7 @@ import {resolve} from 'node:path';
 import assert from 'node:assert/strict';
 import {createDocument,encodeProject,decodeProject,composite,ENGINE_VERSION} from '../packages/core/dist/index.js';
 const out=resolve('artifacts/automatic-handoff');await mkdir(out,{recursive:true});
-const base=process.env.EZPIX_QA_WEBSITE??'http://localhost:3791/tools/ezpix',id='a'.repeat(32),first='b'.repeat(64),second='c'.repeat(64);
+const base=process.env.EZPIX_QA_WEBSITE??'http://localhost:3791/tools/ezpix',id=process.env.EZPIX_QA_EXTENSION_ID??'eijjjhokfogdfcnednolghbegpddneci',first='b'.repeat(64),second='c'.repeat(64);
 function fixture(width,height){const doc=createDocument(width,height);doc.name='Original preview';const pixels=doc.layers[0].cels[doc.activeFrameId]=new Uint8ClampedArray(width*height*4);for(let i=0;i<pixels.length;i+=4)pixels.set([20+i%220,60,150,255],i);const bytes=Buffer.from(encodeProject(doc,false));return {pixels:[...pixels],width,height,manifest:{protocol:1,engine:ENGINE_VERSION,size:bytes.length,count:1,sha256:createHash('sha256').update(bytes).digest('hex')},data:bytes.toString('base64')};}
 const a=fixture(8,5),b=fixture(7,3),browser=await chromium.launch({executablePath:process.env.EZPIX_CHROMIUM_PATH,headless:true});
 const checks=[],errors=[];const check=name=>{checks.push(name);console.log('PASS',name);};

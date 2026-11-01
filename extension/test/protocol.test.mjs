@@ -1,9 +1,19 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { authorize, authorizeDiscovery, responseFor } from '../protocol.js';
+import { authorize, authorizeDiscovery, authorizePopup, responseFor } from '../protocol.js';
 import { receiveProject } from '../../packages/core/dist/transfer.js';
 import { createDocument, encodeProject, ENGINE_VERSION } from '../../packages/core/dist/index.js';
 const origin='http://localhost:3791', sender={tab:{id:4},frameId:0,url:origin+'/tools/ezpix/editor'}, message={op:'manifest',token:'secret',protocol:1};
+
+test('website popup requests require the exact origin, page, top frame and focused active source tab',()=>{
+ const request={op:'open-popup',protocol:1},caller={...sender,tab:{id:4,windowId:2}},window={id:2,focused:true,type:'normal'},tab={id:4,windowId:2,active:true};
+ for(const path of ['/tools/ezpix','/tools/ezpix/editor','/tools/ezpix/help','/tools/ezpix/extension'])authorizePopup(request,{...caller,url:origin+path},origin,window,tab);
+ for(const bad of [{...caller,frameId:1},{...caller,url:'https://evil.example/tools/ezpix'},{...caller,url:origin+'/tools/other'},{...caller,url:origin+'/tools/ezpix/anything'},{...caller,documentLifecycle:'prerender'},{...caller,tab:{id:5,windowId:2}},{...caller,tab:{id:4}}])assert.throws(()=>authorizePopup(request,bad,origin,window,tab));
+ for(const bad of [{...window,focused:false},{...window,id:3},{...window,type:'popup'}])assert.throws(()=>authorizePopup(request,caller,origin,bad,tab));
+ for(const bad of [{...tab,active:false},{...tab,id:5},{...tab,windowId:3}])assert.throws(()=>authorizePopup(request,caller,origin,window,bad));
+ for(const bad of [{...request,op:'discover'},{...request,protocol:2}])assert.throws(()=>authorizePopup(bad,caller,origin,window,tab));
+ assert.throws(()=>authorize(null,request,caller,origin));
+});
 test('discovery returns no transfer data and requires exact origin, allowed page and top frame',()=>{const request={op:'discover',protocol:1};authorizeDiscovery(request,sender,origin);authorizeDiscovery(request,{...sender,url:origin+'/tools/ezpix/help'},origin);for(const bad of [{...sender,frameId:1},{...sender,url:origin+'/tools/other'},{...sender,url:'https://invalid/tools/ezpix'},{...sender,tab:undefined}])assert.throws(()=>authorizeDiscovery(request,bad,origin));assert.throws(()=>authorizeDiscovery({...request,protocol:2},sender,origin));assert.throws(()=>authorize(null,request,sender,origin));});
 test('bind transfer to origin, exact path, tab, top frame, token and expiry',()=>{
   const record={token:'secret',tabId:4,origin,expires:2000};

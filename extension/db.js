@@ -15,7 +15,7 @@ export async function state(key, value = undefined) {
   }); } finally { db.close(); }
 }
 export async function purgeExpired(now=Date.now()) {
-  for (const key of ['capture','transfer','selection','mediaSession','popupReturn']) await updateState(key,item=>item&&item.expires<=now?null:item);
+  for (const key of ['capture','transfer','selection','mediaSession','popupReturn','websitePopup']) await updateState(key,item=>item&&item.expires<=now?null:item);
   // Manual-studio recovery is a separate, opt-in seven-day policy. Purge on wake,
   // without decoding artwork or allowing damaged recovery to block page capture.
   await updateState('studioDrafts',items=>{

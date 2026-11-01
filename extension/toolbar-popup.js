@@ -8,6 +8,11 @@ export async function consumePopupReturn(source) {
   await updateState('popupReturn',record=>{restore=matchesPopupReturn(record,source);return null;});
   return restore;
 }
+export async function consumeWebsitePopup(source) {
+ let launch=false;
+ await updateState('websitePopup',record=>{launch=matchesPopupReturn(record,source);return null;});
+ return launch;
+}
 /** The action popup belongs to the focused browser window, just like Table Grabber. */
 export async function captureSource(source) {
   if(!Number.isInteger(source?.tabId)||!Number.isInteger(source?.windowId))throw Error('Open the EzPIX toolbar popup on a webpage first.');

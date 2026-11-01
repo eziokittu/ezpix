@@ -1,7 +1,7 @@
 # EzPIX Insta Chrome update entry sheet
 
-1 November 2026. Update **0.465.5** in the SAME published item, ID `eijjjhokfogdfcnednolghbegpddneci`.
-Extension package: `dist/release/ezpix-insta-0.465.5.zip`. Listing media: `dist/release/ezpix-insta-store-assets-0.465.5.zip` (not an extension package).
+1 November 2026. Update **0.465.6** in the SAME published item, ID `eijjjhokfogdfcnednolghbegpddneci`.
+Extension package: `dist/release/ezpix-insta-0.465.6.zip`. Listing media: `dist/release/ezpix-insta-store-assets-0.465.6.zip` (not an extension package).
 No dashboard upload or submission is performed by these scripts.
 
 ## Listing
@@ -41,7 +41,7 @@ The owner supplied an earlier English-description rejection identifying an expor
 
 Replace the entire English detailed description in the existing item's Store listing with only the text inside the Detailed description block above. Do not append it to the rejected text or paste this whole entry sheet into that field. Save the dashboard changes and submit the revised item for review. A package upload does not replace the separately stored listing description. Review other localized descriptions if present. No dashboard edit, resubmission or appeal has been performed locally; approval remains subject to Google's review.
 
-After running scripts/package-store-assets.mjs, the adjacent dist/release/ezpix-insta-store-description-0.465.5.txt contains only the replacement description, ready to paste. The store-assets archive also carries the corrected STORE-LISTING.md. The extension ZIP is unchanged.
+After running scripts/package-store-assets.mjs, the adjacent dist/release/ezpix-insta-store-description-0.465.6.txt contains only the replacement description, ready to paste. The store-assets archive also carries the corrected STORE-LISTING.md. The description-only correction did not alter the earlier package. Version 0.465.6 separately adds the guarded website popup launcher.
 
 References: [Yellow Argon guidance](https://developer.chrome.com/docs/webstore/troubleshooting/#keyword-stuffing), [listing requirements](https://developer.chrome.com/docs/webstore/program-policies/listing-requirements), [updating listing metadata](https://developer.chrome.com/docs/webstore/update).
 
@@ -70,3 +70,5 @@ Retain accurate disclosure that user-selected website content and capture-select
 ## Assets
 
 Upload the new shared 128px transparent canvas/pencil icon, five numbered 1280x800 screenshots, 440x280 small promo and 1400x560 marquee. Icon variants use the same illustration without a surrounding green badge. Promo backgrounds remain full opaque layouts. Optional video remains blank; no hosted video is supplied.
+
+Website launcher review: on an allowed GlitchBong EzPix page, click EzPIX Insta. Version 0.465.6 opens its existing Chrome toolbar popup. Without an activeTab grant, open local media or use Camera/Live screen; click the pinned icon to capture the page. No capture starts from discovery, and no new host permission is requested. The matching website changes are local until the owner authorizes a push/deployment.

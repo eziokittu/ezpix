@@ -1,8 +1,13 @@
 import { CHUNK_BYTES, TRANSFER_LIMIT } from '../packages/core/dist/transfer.js';
 export { CHUNK_BYTES, TRANSFER_LIMIT };
-export function authorizeDiscovery(message,sender,origin){
+function authorizeWebsite(message,sender,origin,op){
  let url;try{url=new URL(sender.url);}catch{throw new Error('Discovery denied.');}
- if(message?.op!=='discover'||message.protocol!==1||sender.frameId!==0||!Number.isInteger(sender.tab?.id)||url.origin!==origin||!['/tools/ezpix','/tools/ezpix/editor','/tools/ezpix/help'].includes(url.pathname))throw new Error('Discovery denied.');
+ if(message?.op!==op||message.protocol!==1||sender.frameId!==0||!Number.isInteger(sender.tab?.id)||url.origin!==origin||!['/tools/ezpix','/tools/ezpix/editor','/tools/ezpix/help','/tools/ezpix/extension'].includes(url.pathname)||(sender.documentLifecycle&&sender.documentLifecycle!=='active'))throw new Error('Website request denied.');
+}
+export function authorizeDiscovery(message,sender,origin){authorizeWebsite(message,sender,origin,'discover');}
+export function authorizePopup(message,sender,origin,window,tab){
+ authorizeWebsite(message,sender,origin,'open-popup');
+ if(!Number.isInteger(sender.tab.windowId)||window?.id!==sender.tab.windowId||!window.focused||window.type!=='normal'||tab?.id!==sender.tab.id||tab.windowId!==window.id||!tab.active)throw Error('Open EzPIX Insta from the active GlitchBong tab.');
 }
 export function authorize(record,message,sender,origin,now=Date.now()) {
   if (!record || !message || message.protocol!==1 || typeof message.token!=='string' || message.token!==record.token || record.expires<=now || sender.tab?.id!==record.tabId || sender.frameId!==0) throw new Error('Transfer denied.');

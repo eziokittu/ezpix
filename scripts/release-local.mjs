@@ -32,10 +32,14 @@ let server;
 await save();
 try{
  await run('sync-core',process.execPath,['scripts/sync-ezpix-core.mjs','--offline-copy'],web);
+ await run('extension-package',process.execPath,[npm,'run','package:extension']);
+ // Pin website handoff trust to this exact unpacked development build during QA.
+ const extension=resolve(root,'dist/extension-dev');
+ const probe=await chromium.launchPersistentContext(resolve(out,'id-profile'),{headless:true,executablePath:env.EZPIX_CHROMIUM_PATH,args:[`--disable-extensions-except=${extension}`,`--load-extension=${extension}`]});
+ try{const worker=probe.serviceWorkers()[0]??await probe.waitForEvent('serviceworker');env.NEXT_PUBLIC_EZPIX_EXTENSION_ID=new URL(worker.url()).host;env.EZPIX_QA_EXTENSION_ID=env.NEXT_PUBLIC_EZPIX_EXTENSION_ID;}finally{await probe.close();}
  await run('website-build',process.execPath,[npm,'run','build'],web);
  await run('website-lint',process.execPath,['node_modules/eslint/bin/eslint.js','src/app/tools/ezpix'],web);
  await run('route-policy',process.execPath,[npm,'run','test:adsense'],web);
- await run('extension-package',process.execPath,[npm,'run','package:extension']);
  await run('package-integrity',process.execPath,['scripts/verify-package.mjs']);
 
  await run('store-screenshots',process.execPath,['scripts/floating-store-assets.mjs']);
@@ -45,6 +49,9 @@ try{
  let ready=false;for(let i=0;i<120;i++){if(server.exitCode!==null)throw Error('Website QA server exited.');try{if((await fetch('http://localhost:3791/tools/ezpix')).ok){ready=true;break;}}catch{}await new Promise(done=>setTimeout(done,500));}if(!ready)throw Error('Website QA server did not start.');
  env.EZPIX_QA_WEBSITE='http://localhost:3791/tools/ezpix';env.EZPIX_QA_MEDIA='1';
  await run('toolbar-popup-capture-handoff',process.execPath,['scripts/toolbar-popup-qa.mjs']);
+ await run('website-launch',process.execPath,['scripts/website-launch-qa.mjs']);
+ await run('website-security-ui',process.execPath,['scripts/website-audit-qa.mjs']);
+ env.EZPIX_AUDIT_PHASE='release';await run('website-performance',process.execPath,['scripts/website-performance-qa.mjs']);
  await run('automatic-handoff-safeguards',process.execPath,['scripts/automatic-handoff-qa.mjs']);
  await run('raw-indexed-website',process.execPath,['scripts/raw-indexed-png-ui.mjs']);
  await run('independent-conversion', 'python', ['scripts/floating-studio-reference.py']);

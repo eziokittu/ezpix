@@ -13,7 +13,7 @@ document.documentElement.style.setProperty('--popup-max-width',Math.max(420,Math
 const status = document.querySelector('[data-handoff-status]'), host = document.querySelector('[data-converter]');
 const setStatus=(text,error=false)=>showNotice(status,text,error);
 let handingOff = false, captureJob = 0, layout;
-let restoring = false, pendingFile, initializing=true;
+let restoring = false, pendingFile, initializing=true, pageCaptureAllowed=false;
 // Retain the chosen media locally because a toolbar popup closes on outside clicks.
 async function retainSource(source) {
  if(restoring)return;
@@ -97,9 +97,13 @@ const startupControls=[...host.querySelectorAll('.sf-top button,.sf-top input')]
 startupControls.forEach(el=>el.disabled=true);setStatus('Capturing the visible page...');
 try{
  const [tab]=await chrome.tabs.query({active:true,currentWindow:true});
+ pageCaptureAllowed=/^https?:/.test(tab?.url??'');
  const response=await chrome.runtime.sendMessage({type:'POPUP_OPEN',source:{tabId:tab?.id,windowId:tab?.windowId}});
  if(response?.error)throw Error(response.error);
- if(!['restore','captured'].includes(response?.status))throw Error('Capture did not finish. Try capturing again.');
- await loadCapture();
+ if(response?.status==='choose')setStatus(response.message);
+ else{
+  if(!['restore','captured'].includes(response?.status))throw Error('Capture did not finish. Try capturing again.');
+  await loadCapture();
+ }
 }catch(error){setStatus(error.message??'Could not capture this page. Open media or choose another page.',true);}
-finally{initializing=false;startupControls.forEach(el=>el.disabled=false);}
+finally{initializing=false;startupControls.forEach(el=>{el.disabled=el.matches('[data-mode]')&&!pageCaptureAllowed;if(el.disabled)el.title='Click the pinned EzPIX Insta toolbar icon to allow page capture.';});}

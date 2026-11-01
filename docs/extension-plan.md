@@ -1,6 +1,12 @@
 # EzPIX Insta extension architecture
 
-1 November 2026. Extension **0.465.5**, shared engine/vendor **0.465.0**. Shared algorithms in packages/core; website consumes a versioned archive. See [current handoff](../../glitchbong/docs/ezpix-release-local.md) and [core contracts](../packages/core/README.md).
+1 November 2026. Extension **0.465.6**, shared engine/vendor **0.465.0**. Shared algorithms in packages/core; website consumes a versioned archive. See [current handoff](../../glitchbong/docs/ezpix-release-local.md) and [core contracts](../packages/core/README.md).
+
+## Website launcher (local update, not pushed)
+
+The website retires its Focus studio converter and uses one EzPIX Insta action in the dense and tiled headers and extension/help pages. If the configured extension is not detected, the action opens the existing store listing in a new tab without navigating away from artwork. Discovery exposes the openPopup capability and extension version. Older installs link to their store update; denied/failed opens explain the pinned-icon fallback. Availability is checked on mount, focus and return from installation. Local QA uses NEXT_PUBLIC_EZPIX_EXTENSION_ID for the unpacked development ID; production defaults to the published ID.
+
+External open-popup requests use Chrome action.openPopup, never a new studio tab/window. Exact origin, allowed path, top frame, active document and the focused normal window/active tab are required. A one-use tab/window record expires after ten seconds and clears on RESET. Discovery never opens UI or exposes pixels. Opening programmatically does not grant activeTab: without an existing grant, show the compact local-media chooser with toolbar-capture guidance; with a grant, capture normally. Actual toolbar clicks and selection/media workflow returns retain their existing behavior. No permissions or shared-core changes.
 
 ## Capture and conversion popup
 
@@ -14,7 +20,7 @@ Output fits 256px axes. Video input caps at eight seconds, 32 MiB and 32 sampled
 
 ## Permissions and retention
 
-Exactly activeTab (explicit page capture), scripting (selector/geometry) and alarms (expiry). The action popup requires no additional permission. No blanket host, clipboard, storage/sync or browsing-history permission. IndexedDB stores the last opened media, capture, selection and transfer records for ten minutes. Camera stills are PNG; supported local media files retain their original bounded input for a workflow return. Fresh toolbar clicks replace the preview with the current page capture; download finished edits before dismissal. Legacy opt-in manual recovery drafts retain their earlier seven-day/four-draft/8 MiB expiry cleanup; this version creates no new manual drafts. Appearance is localStorage. The bundled privacy page describes these policies; hosted privacy/help matches the 1 November update deployed from master commit 2d6c503.
+Exactly activeTab (explicit page capture), scripting (selector/geometry) and alarms (expiry). The action popup requires no additional permission. No blanket host, clipboard, storage/sync or browsing-history permission. IndexedDB stores the last opened media, capture, selection and transfer records for ten minutes. Camera stills are PNG; supported local media files retain their original bounded input for a workflow return. Fresh toolbar clicks replace the preview with the current page capture; download finished edits before dismissal. Legacy opt-in manual recovery drafts retain their earlier seven-day/four-draft/8 MiB expiry cleanup; this version creates no new manual drafts. Appearance is localStorage. The bundled and website-source privacy pages describe these policies and the website launcher. The previously deployed privacy/help came from master commit 2d6c503; the new launcher disclosure remains local until a separately authorized deployment.
 
 ## Guarded website handoff
 
@@ -57,3 +63,5 @@ Each fresh toolbar action automatically captures the current visible viewport us
 Background swatch/hex clicks open an inline rectangular HSV/hex picker, avoiding an external colour dialog that could dismiss the toolbar popup. Invalid hex never reaches conversion. The source magnifier displays eleven source pixels at 10x instead of 12x. Source/output overlays display their own zero-based image-pixel X/Y at the lower right, mapped through their actual rendered canvas sizes and reset on leaving or dimension changes. Animation and Capture limits sections are hidden while required converter fields and bounded defaults remain available internally. Shared engine, schema and manifest permissions remain unchanged.
 
 Verification: 16 extension tests; 25 full production popup/media groups; 22 short-display groups; final focused packaged browser checks after reusing core colour helpers; exact live HTTPS handoff and independent pixels/ZIP/store-media integrity. The website guidance/privacy promotion 2d6c503 deployed successfully and all three public pages returned HTTP 200 with current copy. See artifacts/toolbar-popup and artifacts/toolbar-popup-small.
+
+Current 0.465.6 local evidence: website production build and lint, 17 extension unit tests, 12 website-launch browser groups, 24 toolbar/capture/media/handoff groups, six deterministic import safeguards, unchanged 0.465.0 core provenance and independent runtime ZIP checks. See sibling docs/ezpix-release-local.md for the current local candidates and external gates. No push/deploy/store submission for this follow-up.

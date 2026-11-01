@@ -1,15 +1,15 @@
-import {captureSource,presentPopup,consumePopupReturn} from './toolbar-popup.js';
+import {captureSource,presentPopup,consumePopupReturn,consumeWebsitePopup} from './toolbar-popup.js';
 import {openMediaCapture,handleMediaRequest} from './media-capture.js';
 import {waitForTabReady} from './navigation.js';
 import { state, purgeExpired, updateState } from './db.js';
 import { selectOnPage } from './selector.js';
-import { authorize, authorizeDiscovery, responseFor, TRANSFER_LIMIT } from './protocol.js';
+import { authorize, authorizeDiscovery, authorizePopup, responseFor, TRANSFER_LIMIT } from './protocol.js';
 import { decodeProject, ENGINE_VERSION } from '../packages/core/dist/index.js';
 import { imageDimensions } from '../packages/core/dist/browser.js';
 import { WEBSITE_ORIGIN, WEBSITE_HANDOFF_ENABLED } from './config.js';
 const EXPIRY=10*60*1000;
 const token=()=>[...crypto.getRandomValues(new Uint8Array(32))].map(n=>n.toString(16).padStart(2,'0')).join('');
-const arm=async()=>{const items=await Promise.all(['capture','transfer','selection','mediaSession','popupReturn'].map(key=>state(key)));const times=items.filter(Boolean).map(item=>item.expires);if(times.length)await chrome.alarms.create('ezpix-expiry',{when:Math.max(Date.now()+100,Math.min(...times))});};
+const arm=async()=>{const items=await Promise.all(['capture','transfer','selection','mediaSession','popupReturn','websitePopup'].map(key=>state(key)));const times=items.filter(Boolean).map(item=>item.expires);if(times.length)await chrome.alarms.create('ezpix-expiry',{when:Math.max(Date.now()+100,Math.min(...times))});};
 chrome.alarms.onAlarm.addListener(()=>{void purgeExpired().then(arm);});
 chrome.tabs.onRemoved.addListener(id=>{void updateState('transfer',record=>record?.tabId===id?null:record);void updateState('mediaSession',record=>record?.tabId===id?null:record);});
 let busy=false;
@@ -66,7 +66,7 @@ chrome.runtime.onMessage.addListener((message,sender,reply)=>{
     if(message?.type==='RESET_STUDIO'){
       internal(sender,'app.html');
       const captures=await chrome.runtime.getContexts({contextTypes:['TAB'],documentUrls:[chrome.runtime.getURL('media.html')]});
-      await Promise.all(['capture','transfer','selection','mediaSession','popupReturn'].map(key=>state(key,null)));
+      await Promise.all(['capture','transfer','selection','mediaSession','popupReturn','websitePopup'].map(key=>state(key,null)));
       await Promise.all([...new Set(captures.filter(c=>c.frameId===0&&c.tabId>=0).map(c=>c.tabId))].map(id=>chrome.tabs.remove(id).catch(()=>{})));
       return {status:'reset'};
     }
@@ -74,6 +74,13 @@ chrome.runtime.onMessage.addListener((message,sender,reply)=>{
     if(['MEDIA_INIT','MEDIA_COMPLETE','MEDIA_CANCEL'].includes(message?.type)){const result=await handleMediaRequest(message,sender);await arm();return result;}
     if(message?.type==='POPUP_OPEN'){
       internal(sender,'app.html');
+      if(await consumeWebsitePopup(message.source)){
+        // Opening a popup from a webpage does not grant activeTab. Keep local
+        // media usable without a capture error or requesting broad host access.
+        const [tab]=await chrome.tabs.query({active:true,windowId:message.source.windowId});
+        await state('popupReturn',null);
+        if(tab?.id!==message.source.tabId||!/^https?:/.test(tab.url??''))return {status:'choose',message:'Open media, camera or screen sharing. To capture this page, click the pinned EzPIX Insta toolbar icon.'};
+      }
       if(await consumePopupReturn(message.source))return {status:'restore'};
       return await start({...message,mode:'visible'},sender);
     }
@@ -96,13 +103,32 @@ chrome.runtime.onMessage.addListener((message,sender,reply)=>{
     throw new Error('Unsupported request.');
   })().then(reply,async error=>{if(message?.type==='SELECTED'){await state('capture',{error:error.message??'Capture failed.',expires:Date.now()+EXPIRY});await arm();await notifyCapture(sender.tab?.windowId,sender.tab?.id);}reply({error:error.message??'Capture failed. Try a different page.'});});return true;
 });
+let openingWebsitePopup=false;
 chrome.runtime.onMessageExternal.addListener((message,sender,reply)=>{
   (async()=>{
     if(!WEBSITE_HANDOFF_ENABLED)throw Error('Website integration is unavailable in this release.');
-    if(message?.op==='discover'){authorizeDiscovery(message,sender,WEBSITE_ORIGIN);return {protocol:1,engine:ENGINE_VERSION,status:'available'};}
+    if(message?.op==='discover'){authorizeDiscovery(message,sender,WEBSITE_ORIGIN);return {protocol:1,engine:ENGINE_VERSION,status:'available',openPopup:true,version:chrome.runtime.getManifest().version};}
+    if(message?.op==='open-popup'){
+      // Validate the caller before asking Chrome to show any extension UI.
+      authorizeDiscovery({...message,op:'discover'},sender,WEBSITE_ORIGIN);
+      if(openingWebsitePopup)throw Error('Popup opening is already in progress.');
+      openingWebsitePopup=true;
+      try{
+        const window=await chrome.windows.getLastFocused({windowTypes:['normal']});
+        const [tab]=await chrome.tabs.query({active:true,windowId:window.id});
+        authorizePopup(message,sender,WEBSITE_ORIGIN,window,tab);
+        if(!(await chrome.runtime.getContexts({contextTypes:['POPUP']})).length){
+          const launch={tabId:tab.id,windowId:window.id,expires:Date.now()+10000};
+          await state('websitePopup',launch);await arm();
+          try{await chrome.action.openPopup({windowId:window.id});}
+          catch(error){await updateState('websitePopup',record=>record?.expires===launch.expires?null:record);throw error;}
+        }
+        return {protocol:1,status:'opened'};
+      }finally{openingWebsitePopup=false;}
+    }
     await purgeExpired();const record=await state('transfer');authorize(record,message,sender,WEBSITE_ORIGIN);
     const response=responseFor(record,message);
     if(message.op==='ack')await updateState('transfer',current=>{authorize(current,message,sender,WEBSITE_ORIGIN);responseFor(current,message);const receipt={...current,acked:true};delete receipt.bytes;return receipt;});
     return response;
-  })().then(reply,()=>reply({error:'Transfer denied or expired.'}));return true;
+  })().then(reply,()=>reply({error:message?.op==='open-popup'?'Chrome could not open EzPIX Insta. Click its pinned toolbar icon.':'Transfer denied or expired.'}));return true;
 });
