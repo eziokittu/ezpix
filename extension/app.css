@@ -10,3 +10,49 @@ input[type=checkbox],input[type=range]{accent-color:var(--color-neon)}a{color:va
 .sf-handoff{font-size:11px;margin:0}.ez-app [data-level=error]{color:var(--ez-danger)!important}.ez-app .sf-reset{color:var(--ez-danger);border-color:color-mix(in srgb,var(--ez-danger) 45%,transparent);font-weight:700;letter-spacing:.4px}.sf-external-icon{width:14px;height:14px;flex:none;vertical-align:middle}
 .sf-confirm{max-width:350px;width:calc(100% - 40px);padding:20px;border:1px solid var(--color-border-bright);border-radius:12px;background:var(--ez-panel);color:var(--color-text-primary);box-shadow:0 20px 60px #0008}.sf-confirm::backdrop{background:#020a16b8}.sf-confirm h2{font-size:18px;margin:0 0 10px}.sf-confirm p{font-size:12px;margin:0 0 18px}.sf-confirm-actions{display:flex;justify-content:flex-end;gap:8px}
 footer{display:flex;align-items:center;gap:10px;color:var(--color-text-secondary);font-size:10px}footer a{margin-left:auto}
+
+/* Theme the viewport as well as nested settings, dialogs and media panels. */
+:root:has(.ez-app) {
+  --ez-scroll-thumb:#5792ff;
+  --ez-scroll-hover:#36d5f2;
+  --ez-scroll-track:#0b1c30;
+  color-scheme:dark;
+}
+:root:has(.ez-app[data-theme="light"]) {
+  --ez-scroll-thumb:#006f92;
+  --ez-scroll-hover:#245bd0;
+  --ez-scroll-track:#e2edfa;
+  color-scheme:light;
+}
+.ez-app[data-theme="light"] { color-scheme:light; }
+@media(prefers-color-scheme:light) {
+  :root:has(.ez-app[data-theme="system"]) {
+    --ez-scroll-thumb:#006f92;
+    --ez-scroll-hover:#245bd0;
+    --ez-scroll-track:#e2edfa;
+    color-scheme:light;
+  }
+  .ez-app[data-theme="system"] { color-scheme:light; }
+}
+:root:has(.ez-app), :root:has(.ez-app) * {
+  scrollbar-width:thin;
+  scrollbar-color:var(--ez-scroll-thumb) var(--ez-scroll-track);
+}
+/* Older WebKit uses these; modern browsers use the native properties above. */
+@supports not (scrollbar-color:red blue) {
+  :root:has(.ez-app)::-webkit-scrollbar,
+  :root:has(.ez-app) ::-webkit-scrollbar { width:8px; height:8px; }
+  :root:has(.ez-app)::-webkit-scrollbar-track,
+  :root:has(.ez-app) ::-webkit-scrollbar-track,
+  :root:has(.ez-app)::-webkit-scrollbar-corner,
+  :root:has(.ez-app) ::-webkit-scrollbar-corner { background:var(--ez-scroll-track); }
+  :root:has(.ez-app)::-webkit-scrollbar-thumb,
+  :root:has(.ez-app) ::-webkit-scrollbar-thumb {
+    background:var(--ez-scroll-thumb); border:2px solid var(--ez-scroll-track); border-radius:8px;
+  }
+  :root:has(.ez-app)::-webkit-scrollbar-thumb:hover,
+  :root:has(.ez-app) ::-webkit-scrollbar-thumb:hover { background:var(--ez-scroll-hover); }
+}
+@media(forced-colors:active) {
+  :root:has(.ez-app), :root:has(.ez-app) * { scrollbar-color:auto; }
+}
