@@ -106,4 +106,4 @@ try{
   await loadCapture();
  }
 }catch(error){setStatus(error.message??'Could not capture this page. Open media or choose another page.',true);}
-finally{initializing=false;startupControls.forEach(el=>{el.disabled=el.matches('[data-mode]')&&!pageCaptureAllowed;if(el.disabled)el.title='Click the pinned EzPIX Insta toolbar icon to allow page capture.';});}
+finally{initializing=false;startupControls.forEach(el=>{el.disabled=el.matches('[data-open-expanded]')?document.body.dataset.studioMode!=='media':el.matches('[data-mode]')&&!pageCaptureAllowed;if(el.disabled)el.title='Click the pinned EzPIX Insta toolbar icon to allow page capture.';});}

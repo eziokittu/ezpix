@@ -1,6 +1,6 @@
 # EzPIX Insta extension architecture
 
-1 November 2026. Extension **0.465.6**, shared engine/vendor **0.465.0**. Shared algorithms in packages/core; website consumes a versioned archive. See [current handoff](../../glitchbong/docs/ezpix-release-local.md) and [core contracts](../packages/core/README.md).
+2 November 2026. Extension and shared engine/vendor **0.466.2**. Shared algorithms in packages/core; website consumes a versioned archive. See [current handoff](../../glitchbong/docs/ezpix-release-local.md) and [core contracts](../packages/core/README.md).
 
 ## Website launcher (local update, not pushed)
 
@@ -65,3 +65,17 @@ Background swatch/hex clicks open an inline rectangular HSV/hex picker, avoiding
 Verification: 16 extension tests; 25 full production popup/media groups; 22 short-display groups; final focused packaged browser checks after reusing core colour helpers; exact live HTTPS handoff and independent pixels/ZIP/store-media integrity. The website guidance/privacy promotion 2d6c503 deployed successfully and all three public pages returned HTTP 200 with current copy. See artifacts/toolbar-popup and artifacts/toolbar-popup-small.
 
 Current 0.465.6 local evidence: website production build and lint, 17 extension unit tests, 12 website-launch browser groups, 24 toolbar/capture/media/handoff groups, six deterministic import safeguards, unchanged 0.465.0 core provenance and independent runtime ZIP checks. See sibling docs/ezpix-release-local.md for the current local candidates and external gates. No push/deploy/store submission for this follow-up.
+
+## Expanded workspace and persistent selection masks in 0.466.0
+
+Both image surfaces have a bottom-left expand button. A modal workspace covers the popup toolbar, retains the original canvas elements/handlers and live controls, and provides Input/Output switching, a close button, Escape dismissal and normal dialog focus confinement. Active preview intrinsic width > height places settings underneath; portrait and equal axes place them on the right. Resizing and changing dimensions refit the image without stretching. Closing returns canvases/settings/status to their exact original homes. No new tab/window, screen permission or browser fullscreen permission is used.
+
+Selections now have explicit per-pixel membership. Lasso uses coalesced pointer samples (up to 8,192 points) and an even-odd scanline fill instead of repeatedly reducing the outline to 128 points. Commit enables Focus object and supplies the compact crop-relative mask to the worker. Rectangle, ellipse, polygon, freehand and brush all support Replace/Add/Remove. Magic uses a four-connected flood with maximum per-channel RGB distance from the clicked seed (0-255, default 64), ignores transparent pixels and never drifts through a gradual colour ramp. Tolerance recomputes only the last magic region against its saved pre-click selection. Other colours require additive clicks or manual refinement. This cannot infer the semantic boundaries of every car or separate foreground/background with identical touching colours.
+
+Masks apply before tone/blur/palette/grid operations; motion tracking translates the same crop-relative mask. One selection Undo retains the previous edit. An empty selection clears the output and disables export; cancellation restores the last completed selection. Nonmembers are transparent black. A checkerboard makes output transparency visible. Source sampling remains based on original pixels; selection shading is cached separately. Selection masks are transient, not a new project or wire schema. Image budgets remain four megapixels, with a 32-million polygon scan budget and bounded point count. No permissions, privacy retention, capture, transfer trust or schema changes.
+
+The engine/package version advances together; matching website vendor/lock/provenance are synced locally. The website must be published with that engine before the updated extension can hand off to it. No push/deployment/store upload is authorized or performed by this work. See expanded-selection.md for local checks and package paths.
+
+## Alignment and preview reuse in 0.466.2
+
+The header Expanded view action precedes Appearance. All settings use aligned caption/control/readout cells; photo settings use an inner grid for correct landscape layout. Idle workers and their successfully loaded media frames are reused; newer work cancels busy workers. Static source rendering and compact membership are cached. RESET, replacement media and disposal release caches; idle-worker failure during debounce reloads the pending preview safely. See alignment-performance.md for measured operation counts, regressions and the owner-authorized source-push scope.

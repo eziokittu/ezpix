@@ -440,3 +440,5 @@ export * from './large-mask-timeline.js';
 export * from './large-indexed.js';
 
 export {PALETTE_PRESETS,type PalettePreset} from './palette-presets.js';
+
+export * from './focus-selection.js';

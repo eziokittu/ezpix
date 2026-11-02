@@ -2191,3 +2191,11 @@ default behaviour is unchanged for website and developer bridge tests. The
 production extension disables website handoff/discovery and makes Pixel studio
 the primary popup action. Formats, document schemas, algorithms and permissions
 are unchanged. The website continues to consume the matching versioned archive.
+
+### Focus selection masks (0.466.0)
+
+`FocusOptions.mask` optionally carries binary `Uint8Array` membership with exactly `rect.width * rect.height` cells. `focusRaster` validates it and zeroes nonmembers before photo adjustments and conversion; `focusAnimation` keeps membership relative to the tracked crop. Masks are transient and are not serialized into authored projects. `magicFocusSelection`, `shapeFocusSelection`, `brushFocusSelection`, `combineFocusSelection` and `cropFocusSelection` implement the shared, bounded deterministic selection pipeline used by the extension. Magic is connected seed-colour matching, not semantic segmentation.
+
+### Focus worker cache (0.466.2)
+
+`createConversionProcessor` in the worker entry accepts focus frames on the first request. Later requests to that worker may omit unchanged frames. Only a successful focus request replaces its private frame cache; a new worker must load frames again. Selection masks and current recipe/focus settings remain explicit on every request. The UI reuses idle workers, terminates superseded busy workers and releases cached media on replacement, RESET and disposal.

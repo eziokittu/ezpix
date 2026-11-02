@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "EzPIX Insta",
-  "version": "0.465.6",
+  "version": "0.466.2",
   "minimum_chrome_version": "127",
   "description": "Capture and convert images in a toolbar pixel studio. Compare source and preview, tune settings and download or open the web editor.",
   "permissions": [

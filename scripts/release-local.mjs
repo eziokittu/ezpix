@@ -7,7 +7,7 @@ import {chromium} from 'playwright';
 const root=resolve(import.meta.dirname,'..'),web=resolve(root,'../glitchbong'),out=resolve(root,'artifacts/studio-release');
 await mkdir(out,{recursive:true});
 const npm=process.env.npm_execpath;if(!npm)throw Error('Run npm run release:local so the installed npm CLI is known.');
-const env={...process.env,NEXT_DIST_DIR:'.next-ezpix-studio-release'};
+const env={...process.env,NEXT_PUBLIC_BASE_URL:'https://glitchbong.com',NEXT_DIST_DIR:'.next-ezpix-studio-release'};
 const exists=async path=>{try{await access(path);return true;}catch{return false;}};
 if(!env.EZPIX_CHROMIUM_PATH){
  const expected=chromium.executablePath();
@@ -48,8 +48,11 @@ try{
  server=spawn(process.execPath,[resolve(web,'node_modules/next/dist/bin/next'),'start','-p','3791'],{cwd:web,env,windowsHide:true,stdio:'ignore'});
  let ready=false;for(let i=0;i<120;i++){if(server.exitCode!==null)throw Error('Website QA server exited.');try{if((await fetch('http://localhost:3791/tools/ezpix')).ok){ready=true;break;}}catch{}await new Promise(done=>setTimeout(done,500));}if(!ready)throw Error('Website QA server did not start.');
  env.EZPIX_QA_WEBSITE='http://localhost:3791/tools/ezpix';env.EZPIX_QA_MEDIA='1';
+ await run('expanded-selection',process.execPath,['scripts/expanded-selection-qa.mjs']);
+ await run('popup-performance',process.execPath,['scripts/popup-performance-qa.mjs']);
  await run('toolbar-popup-capture-handoff',process.execPath,['scripts/toolbar-popup-qa.mjs']);
  await run('website-launch',process.execPath,['scripts/website-launch-qa.mjs']);
+ await run('resource-pages',process.execPath,['scripts/resource-pages-qa.mjs']);
  await run('website-security-ui',process.execPath,['scripts/website-audit-qa.mjs']);
  env.EZPIX_AUDIT_PHASE='release';await run('website-performance',process.execPath,['scripts/website-performance-qa.mjs']);
  await run('automatic-handoff-safeguards',process.execPath,['scripts/automatic-handoff-qa.mjs']);

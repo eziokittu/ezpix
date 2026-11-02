@@ -4,7 +4,7 @@ import {nearestPalettePixel,orderedPaletteOffset} from './palette-map.js';
 export interface FocusRect{x:number;y:number;width:number;height:number}
 export interface FocusAdjustments{brightness:number;contrast:number;exposure:number;saturation:number;vibrance:number;temperature:number;tint:number;hue:number;gamma:number;shadows:number;highlights:number;sharpness:number;blur:number;filter:'original'|'mono'|'sepia'|'invert';flipX:boolean;flipY:boolean}
 export const defaultFocusAdjustments=():FocusAdjustments=>({brightness:0,contrast:0,exposure:0,saturation:0,vibrance:0,temperature:0,tint:0,hue:0,gamma:1,shadows:0,highlights:0,sharpness:0,blur:0,filter:'original',flipX:false,flipY:false});
-export interface FocusOptions{rect:FocusRect;method:'background'|'polygon'|'crop'|'chroma';tolerance:number;polygon?:{x:number;y:number}[];shape?:'rectangle'|'ellipse'|'polygon';keyColor?:number[];softness?:number;adjustments?:Partial<FocusAdjustments>}
+export interface FocusOptions{rect:FocusRect;method:'background'|'polygon'|'crop'|'chroma';tolerance:number;polygon?:{x:number;y:number}[];shape?:'rectangle'|'ellipse'|'polygon';keyColor?:number[];softness?:number;mask?:Uint8Array;adjustments?:Partial<FocusAdjustments>}
 function rect(r:FocusRect,s:Raster){if(!r||![r.x,r.y,r.width,r.height].every(Number.isInteger)||r.x<0||r.y<0||r.width<1||r.height<1||r.x+r.width>s.width||r.y+r.height>s.height)throw new Error('Select an object inside the image.');}
 function settings(input:Partial<FocusAdjustments>={}):FocusAdjustments{const a={...defaultFocusAdjustments(),...input};for(const k of ['brightness','contrast','saturation','vibrance','temperature','tint','shadows','highlights'] as const)if(!Number.isFinite(a[k])||Math.abs(a[k])>100)throw new Error('Invalid photo adjustment.');if(!Number.isFinite(a.exposure)||Math.abs(a.exposure)>3||!Number.isFinite(a.gamma)||a.gamma<.25||a.gamma>4||!Number.isFinite(a.hue)||Math.abs(a.hue)>180||!Number.isFinite(a.sharpness)||a.sharpness<0||a.sharpness>100||!Number.isInteger(a.blur)||a.blur<0||a.blur>2||!['original','mono','sepia','invert'].includes(a.filter)||typeof a.flipX!=='boolean'||typeof a.flipY!=='boolean')throw new Error('Invalid photo adjustment.');return a;}
 /** Non-destructive local cutout and tone controls. No semantic segmentation. */
@@ -14,6 +14,7 @@ export function focusRaster(source:Raster,options:FocusOptions):Raster{
  if(options.method==='chroma'&&(!Array.isArray(options.keyColor)||options.keyColor.length!==3||options.keyColor.some(n=>!Number.isInteger(n)||n<0||n>255)))throw new Error('Choose a background colour to remove.');
  const points=options.polygon;if(shape==='polygon'&&(!Array.isArray(points)||points.length<3||points.length>128||points.some(p=>!Number.isInteger(p.x)||!Number.isInteger(p.y)||p.x<0||p.y<0||p.x>=source.width||p.y>=source.height)))throw new Error('Outline the object with 3-128 points.');
  const r=options.rect,w=r.width,h=r.height,pixels=new Uint8ClampedArray(w*h*4);
+  if(options.mask!==undefined&&(!(options.mask instanceof Uint8Array)||options.mask.length!==w*h||options.mask.some(n=>n>1)))throw new Error('Invalid focus selection mask.');
  for(let y=0;y<h;y++)pixels.set(source.pixels.subarray(((y+r.y)*source.width+r.x)*4,((y+r.y)*source.width+r.x+w)*4),y*w*4);
  if(options.method==='background'){
   const samples=[0,w-1,(h-1)*w,w*h-1].map(i=>[...pixels.subarray(i*4,i*4+3)]),seen=new Uint8Array(w*h),queue=new Int32Array(w*h);let start=0,end=0;
@@ -26,7 +27,8 @@ export function focusRaster(source:Raster,options:FocusOptions):Raster{
  for(let y=0;y<h;y++)for(let x=0;x<w;x++){
   const i=(y*w+x)*4;let inside=true;if(shape==='ellipse')inside=((x+.5-w/2)/(w/2))**2+((y+.5-h/2)/(h/2))**2<=1;
   if(shape==='polygon'){inside=false;const px=x+r.x+.5,py=y+r.y+.5;for(let k=0,j=points!.length-1;k<points!.length;j=k++){const p=points![k],q=points![j];if((p.y>py)!==(q.y>py)&&px<(q.x-p.x)*(py-p.y)/(q.y-p.y)+p.x)inside=!inside;}}
-  if(!inside){pixels.fill(0,i,i+4);continue;}
+  if(options.mask&&!options.mask[y*w+x])inside=false;
+   if(!inside){pixels.fill(0,i,i+4);continue;}
   if(options.method==='chroma'){const diff=Math.max(...options.keyColor!.map((c,k)=>Math.abs(pixels[i+k]-c))),soft=options.softness??0;if(diff<=options.tolerance){pixels.fill(0,i,i+4);continue;}if(soft)pixels[i+3]=clamp(pixels[i+3]*Math.min(1,(diff-options.tolerance)/soft));}
   if(!pixels[i+3]){pixels.fill(0,i,i+4);continue;}
   if(!tone)continue;
