@@ -9,7 +9,7 @@ import { imageDimensions } from '../packages/core/dist/browser.js';
 import { WEBSITE_ORIGIN, WEBSITE_HANDOFF_ENABLED } from './config.js';
 const EXPIRY=10*60*1000;
 const token=()=>[...crypto.getRandomValues(new Uint8Array(32))].map(n=>n.toString(16).padStart(2,'0')).join('');
-const arm=async()=>{const items=await Promise.all(['capture','transfer','selection','mediaSession','popupReturn','websitePopup'].map(key=>state(key)));const times=items.filter(Boolean).map(item=>item.expires);if(times.length)await chrome.alarms.create('ezpix-expiry',{when:Math.max(Date.now()+100,Math.min(...times))});};
+const arm=async()=>{const items=await Promise.all(['capture','transfer','selection','mediaSession','popupReturn','websitePopup','localShare'].map(key=>state(key)));const times=items.filter(Boolean).map(item=>item.expires);if(times.length)await chrome.alarms.create('ezpix-expiry',{when:Math.max(Date.now()+100,Math.min(...times))});};
 chrome.alarms.onAlarm.addListener(()=>{void purgeExpired().then(arm);});
 chrome.tabs.onRemoved.addListener(id=>{void updateState('transfer',record=>record?.tabId===id?null:record);void updateState('mediaSession',record=>record?.tabId===id?null:record);});
 let busy=false;
@@ -66,7 +66,7 @@ chrome.runtime.onMessage.addListener((message,sender,reply)=>{
     if(message?.type==='RESET_STUDIO'){
       internal(sender,'app.html');
       const captures=await chrome.runtime.getContexts({contextTypes:['TAB'],documentUrls:[chrome.runtime.getURL('media.html')]});
-      await Promise.all(['capture','transfer','selection','mediaSession','popupReturn','websitePopup'].map(key=>state(key,null)));
+      await Promise.all(['capture','transfer','selection','mediaSession','popupReturn','websitePopup','localShare'].map(key=>state(key,null)));
       await Promise.all([...new Set(captures.filter(c=>c.frameId===0&&c.tabId>=0).map(c=>c.tabId))].map(id=>chrome.tabs.remove(id).catch(()=>{})));
       return {status:'reset'};
     }

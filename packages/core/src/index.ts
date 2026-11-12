@@ -442,3 +442,4 @@ export * from './large-indexed.js';
 export {PALETTE_PRESETS,type PalettePreset} from './palette-presets.js';
 
 export * from './focus-selection.js';
+export {editPhoto,editPhotoFrames,type PhotoEdit} from './photo-edit.js';

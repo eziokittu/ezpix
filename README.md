@@ -1,6 +1,13 @@
 # EzPIX Insta and EzPix shared core
 
-Current extension and shared engine: **0.466.2**. EzPIX Insta captures and converts media in a normal Chrome toolbar popup. Manual Pixel studio lives at https://glitchbong.com/tools/ezpix.
+Photo studio, live camera and expanded selection: [0.468 delivery notes](docs/photo-studio-0.468.md).
+
+Current local extension and shared engine: **0.476.0**. EzPIX Insta captures and converts media in a normal Chrome toolbar popup. Local share opens a persistent tab for account-free direct device transfer. Manual Pixel studio lives at https://glitchbong.com/tools/ezpix.
+
+The 11 November update adds shared mobile image edits, QR/security-code pairing,
+mutual file consent, bounded/checksummed WebRTC transfer and matching Android/web
+integrations. See [implementation and verification boundaries](docs/local-share-mobile.md).
+The update is local; Web Store publication and hosted deployment are separate.
 
 The published store item is https://chromewebstore.google.com/detail/ezpix-insta/eijjjhokfogdfcnednolghbegpddneci. Source is maintained at https://github.com/eziokittu/ezpix; update ZIPs are prepared locally. Upload the new version to the same store item.
 
@@ -42,3 +49,7 @@ Version 0.465.6 uses action.default_popup, like Table Grabber: 420x280 before me
 The 0.465.6 cyan/blue design has four separated sections, collapsible source/output stages, compact Selection controls, a single red RESET with confirmation and a new-tab icon beside Open in Pixel studio. Cancel preview is removed. Camera and Live screen use a temporary local capture tab for permission and one-frame capture, then return to the toolbar popup. Camera errors distinguish blocked access, busy devices and missing cameras, with red guidance and Chrome/Windows settings help.
 
 For this local update, load/reload `dist/extension` in chrome://extensions. The matching website vendor package is synced locally. Automatic handoff requires that matching website engine; the existing hosted site and Web Store listing have not been updated by this change. Downloads work independently. Reproduce expanded-selection checks with `node scripts/expanded-selection-qa.mjs`; repeat with `EZPIX_QA_SCREEN=800x600` for the short-display layout. See [implementation and evidence](docs/expanded-selection.md).
+
+Photo workspace changes for Android 0.5 are described in [the delivery map](../ezpix-android/docs/ISSUES1-DELIVERY.md). The new photo-layer/schema implementation remains in this shared core.
+
+Android 0.6 dock, grouped editable photo layers (photo schema v2, v1 reader retained), and nearby device discovery are mapped in [issues2 delivery](../ezpix-android/docs/ISSUES2-DELIVERY.md). Desktop discovery uses the optional first-party [local companion](tools/nearby-desktop/README.md). QR and nearby pairing both retain mutual security-code confirmation and encrypted WebRTC payloads.

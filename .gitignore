@@ -12,3 +12,6 @@ Thumbs.db
 captures/
 private-projects/
 artifacts/
+
+# Scoped desktop companion dependencies
+tools/nearby-desktop/node_modules/

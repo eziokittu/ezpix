@@ -1,3 +1,5 @@
+import {openDeviceShare} from './open-share.js';
+import {createCreativeTools} from '../packages/core/dist/creative-ui.js';
 import { mountFocusStudio } from '../packages/core/dist/focus-ui.js';
 import { encodeProject } from '../packages/core/dist/index.js';
 import { readImage } from '../packages/core/dist/browser.js';
@@ -43,11 +45,15 @@ const ui = mountFocusStudio(host, {
   finally {handingOff=false;host.querySelector('[data-focus-clear]').disabled=false;}
  }
 });
+const localShare=document.createElement('button');localShare.type='button';localShare.textContent='Local share';localShare.title='Send and receive on another device without an account';document.querySelector('main > footer nav').prepend(localShare);
+localShare.onclick=async()=>{localShare.disabled=true;try{await openDeviceShare(ui);}catch(error){setStatus(error.message||'Could not open Local share.',true);}finally{localShare.disabled=false;}};
 // Extension captures preserve source colours unless the user chooses a palette.
 const palette=host.querySelector('[data-focus-palette]');palette.value='original';
 for(const option of palette.options)option.defaultSelected=option.value==='original';
 layout=mountFloatingLayout(host,()=>{});
 const colourPicker=mountColourPicker(host);
+const creative=createCreativeTools(host,ui);creative.tools.forEach(([id,,,title],index)=>{const details=layout.addGroup(title,creative.contents[index]);details.classList.add('sf-creative-group');details.addEventListener('toggle',()=>{if(details.open)creative.activate(id);else if(!host.querySelector('.sf-creative-group[open]'))creative.activate();});});
+const liveButton=document.createElement('button');liveButton.textContent='Photo & camera';liveButton.onclick=()=>void chrome.tabs.create({url:chrome.runtime.getURL('photo.html')});document.querySelector('main > footer nav').prepend(liveButton);window.addEventListener('pagehide',()=>creative.dispose(),{once:true});
 const fileInput=host.querySelector('[data-focus-file]'),openFile=fileInput.onchange;
 fileInput.onchange=async()=>{const file=fileInput.files?.[0];pendingFile=file;try{await openFile();}finally{if(pendingFile===file)pendingFile=undefined;}};
 const resetButton=host.querySelector('[data-focus-clear]'),clearMedia=resetButton.onclick,resetDialog=document.querySelector('[data-reset-dialog]');

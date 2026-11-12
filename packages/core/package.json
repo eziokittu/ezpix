@@ -1,13 +1,30 @@
 {
   "name": "@ezpix/core",
-  "version": "0.466.2",
+  "version": "0.476.0",
   "private": true,
   "type": "module",
   "files": [
     "dist",
     "README.md"
   ],
+  "dependencies": {
+    "qrcode-generator": "2.0.4",
+    "jsqr": "1.4.0"
+  },
   "exports": {
+    "./shared-artwork": {
+      "types": "./dist/shared-artwork.d.ts",
+      "default": "./dist/shared-artwork.js"
+    },
+    "./local-share": {
+      "types": "./dist/local-share.d.ts",
+      "default": "./dist/local-share.js"
+    },
+    "./local-share-ui": {
+      "types": "./dist/local-share-ui.d.ts",
+      "default": "./dist/local-share-ui.js"
+    },
+    "./local-share.css": "./dist/local-share.css",
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
@@ -32,6 +49,47 @@
     "./tilemap-ui": {
       "types": "./dist/tilemap-ui.d.ts",
       "default": "./dist/tilemap-ui.js"
+    },
+    "./creative-ui": {
+      "types": "./dist/creative-ui.d.ts",
+      "default": "./dist/creative-ui.js"
+    },
+    "./live-camera": {
+      "types": "./dist/live-camera.d.ts",
+      "default": "./dist/live-camera.js"
+    },
+    "./creative.css": "./dist/creative.css",
+    "./focus-ui": {
+      "types": "./dist/focus-ui.d.ts",
+      "default": "./dist/focus-ui.js"
+    },
+    "./photo-workspace": {
+      "types": "./dist/photo-workspace.d.ts",
+      "default": "./dist/photo-workspace.js"
+    },
+    "./photo-project": {
+      "types": "./dist/photo-project.d.ts",
+      "default": "./dist/photo-project.js"
+    },
+    "./nearby": {
+      "types": "./dist/nearby.d.ts",
+      "default": "./dist/nearby.js"
+    },
+    "./live-preview": {
+      "types": "./dist/live-preview.d.ts",
+      "default": "./dist/live-preview.js"
+    },
+    "./panel-tabs": {
+      "types": "./dist/panel-tabs.d.ts",
+      "default": "./dist/panel-tabs.js"
+    },
+    "./design-tools": {
+      "types": "./dist/design-tools.d.ts",
+      "default": "./dist/design-tools.js"
+    },
+    "./color": {
+      "types": "./dist/color.d.ts",
+      "default": "./dist/color.js"
     }
   }
 }

@@ -3,6 +3,16 @@ import type {Selection,Point} from './toolkit.js';
 import {validateSelectionMask} from './selection-mask.js';
 import {encodeNativePng,decodeNativePng} from './native-png.js';
 export type MaskCombine='replace'|'union'|'subtract'|'intersect'|'xor';
+/** Combine in document coordinates so changing drawing tools never discards membership. */
+export function combineSelectionMasks(current:Selection|undefined,next:Selection,mode:MaskCombine):Selection{
+ check(next);if(!['replace','union','subtract','intersect','xor'].includes(mode))throw Error('Unknown selection operation.');
+ if(current){check(current);if(current.canvasWidth!==next.canvasWidth||current.canvasHeight!==next.canvasHeight||current.layerId!==next.layerId||current.frameId!==next.frameId)throw Error('Selections belong to different artwork.');}
+ const w=next.canvasWidth,h=next.canvasHeight,mask=new Uint8Array(w*h);
+ const at=(s:Selection|undefined,x:number,y:number)=>!s||x<s.rect.x||y<s.rect.y||x>=s.rect.x+s.rect.width||y>=s.rect.y+s.rect.height?0:s.mask?.[(y-s.rect.y)*s.rect.width+x-s.rect.x]??1;
+ for(let y=0;y<h;y++)for(let x=0;x<w;x++){const a=at(current,x,y),b=at(next,x,y);mask[y*w+x]=mode==='replace'?b:mode==='union'?+(!!a||!!b):mode==='subtract'?+(!!a&&!b):mode==='intersect'?+(!!a&&!!b):a^b;}
+ const combined={...next,rect:{x:0,y:0,width:w,height:h},mask};
+ return mask.some(Boolean)?tightenSelectionMask(combined):combined;
+}
 export type AdvancedMaskOperation=
  |{kind:'wand'|'colour';seed:Point;tolerance:number;channels:'rgba'|'rgb';connectivity:4|8}
  |{kind:'alpha';min:number;max:number}

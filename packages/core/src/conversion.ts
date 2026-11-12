@@ -5,7 +5,7 @@ export interface Raster { width: number; height: number; pixels: Uint8ClampedArr
 export interface Recipe {
   version: 1; crop: { x: number; y: number; width: number; height: number };
   width: number; height: number; sampling: 'nearest' | 'area';
-  palette: 'original' | 'adaptive' | PalettePreset; colors: number;
+  palette: 'original' | 'adaptive' | 'custom' | PalettePreset; customPalette?:string[]; colors: number;
   dither: boolean; alphaThreshold: number;
 }
 export const MAX_SOURCE_PIXELS = 4 * 1024 * 1024;
@@ -13,7 +13,8 @@ export function validateRaster(source: Raster) {
   if (!source || !Number.isInteger(source.width) || !Number.isInteger(source.height) || source.width < 1 || source.height < 1 || source.width * source.height > MAX_SOURCE_PIXELS || !(source.pixels instanceof Uint8ClampedArray) || source.pixels.length !== source.width * source.height * 4) throw new Error('Source must contain valid RGBA pixels, up to 4 megapixels.');
 }
 export function validateRecipe(r: Recipe, source?: Pick<Raster, 'width' | 'height'>) {
-  if (!r || r.version !== 1 || ![r.width, r.height].every(n => Number.isInteger(n) && n >= 1 && n <= 256) || !['nearest', 'area'].includes(r.sampling) || !['original','adaptive',...Object.keys(PALETTE_PRESETS)].includes(r.palette) || !Number.isInteger(r.colors) || r.colors < 2 || r.colors > 256 || typeof r.dither !== 'boolean' || !Number.isInteger(r.alphaThreshold) || r.alphaThreshold < 0 || r.alphaThreshold > 255) throw new Error('Invalid conversion recipe.');
+  if (!r || r.version !== 1 || ![r.width, r.height].every(n => Number.isInteger(n) && n >= 1 && n <= 256) || !['nearest', 'area'].includes(r.sampling) || !['original','adaptive','custom',...Object.keys(PALETTE_PRESETS)].includes(r.palette) || !Number.isInteger(r.colors) || r.colors < 2 || r.colors > 256 || typeof r.dither !== 'boolean' || !Number.isInteger(r.alphaThreshold) || r.alphaThreshold < 0 || r.alphaThreshold > 255) throw new Error('Invalid conversion recipe.');
+  if(r.palette==='custom'&&(!Array.isArray(r.customPalette)||r.customPalette.length<2||r.customPalette.length>256||r.customPalette.some(c=>!/^#[0-9a-f]{6}$/i.test(c))))throw Error('A custom palette needs 2?256 hex colours.');
   const c = r.crop;
   if (!c || ![c.x, c.y, c.width, c.height].every(Number.isInteger) || c.x < 0 || c.y < 0 || c.width < 1 || c.height < 1 || c.width * c.height > MAX_SOURCE_PIXELS || (source && (c.x + c.width > source.width || c.y + c.height > source.height))) throw new Error('Crop lies outside the source.');
 }
@@ -83,7 +84,7 @@ export function convert(source: Raster, recipe: Recipe): PixelDocument {
     if (!out[dst + 3] || out[dst + 3] < recipe.alphaThreshold) out.fill(0, dst, dst + 4);
   }
   if (recipe.palette !== 'original') {
-    const palette:Color[] = recipe.palette === 'adaptive' ? extractPalette(out, recipe.colors) : PALETTE_PRESETS[recipe.palette].colors.map(c=>[parseInt(c.slice(1,3),16),parseInt(c.slice(3,5),16),parseInt(c.slice(5,7),16)]);
+    const palette:Color[] = recipe.palette === 'adaptive' ? extractPalette(out, recipe.colors) : (recipe.palette==='custom'?recipe.customPalette!:PALETTE_PRESETS[recipe.palette].colors).map(c=>[parseInt(c.slice(1,3),16),parseInt(c.slice(3,5),16),parseInt(c.slice(5,7),16)]);
     for (let i = 0; i < out.length; i += 4) {
       if (!out[i + 3]) continue;
       const x=i/4%doc.width,y=Math.floor(i/4/doc.width);

@@ -4,11 +4,12 @@ import {createHash} from 'node:crypto';
 import assert from 'node:assert/strict';
 import {writeNativeZip} from '../packages/core/dist/native-zip.js';
 import {ENGINE_VERSION} from '../packages/core/dist/index.js';
-const expected=['app.css','app.html','app.js','background.js','converter.css','floating.css','handoff.html','manifest.json','media.css','media.html','media.js','privacy.html','worker.js',...[16,32,48,128].map(s=>`icons/ezpix-insta-${s}.png`)].sort();
+const expected=['UNICODE-LICENSE.txt','app.css','app.html','app.js','background.js','converter.css','creative.css','floating.css','handoff.html','manifest.json','media.css','media.html','media.js','privacy.html','worker.js','share.html','share.css','share.js','local-share.css','photo.html','photo.css','photo.js',...[16,32,48,128].map(s=>`icons/ezpix-insta-${s}.png`)].sort();
 async function entries(dir,prefix=''){const out=[];for(const e of await readdir(dir,{withFileTypes:true})){if(e.isSymbolicLink())throw Error('Release files must not be symlinks');const name=prefix+e.name;out.push(...(e.isDirectory()?await entries(dir+'/'+e.name,name+'/'):[name]));}return out;}
 assert.deepEqual((await entries('dist/extension')).sort(),expected,'Unexpected/missing production files. Rebuild in a clean output directory.');
 const files=new Map();for(const name of expected)files.set(name,new Uint8Array(await readFile('dist/extension/'+name)));
 const manifest=JSON.parse(new TextDecoder().decode(files.get('manifest.json')));
+assert.equal(ENGINE_VERSION,manifest.version,'Manifest and engine versions must agree');
 assert.equal(manifest.version,JSON.parse(await readFile('extension/manifest.json','utf8')).version);assert.equal(manifest.manifest_version,3);
 assert.deepEqual(manifest.permissions,['activeTab','scripting','alarms']);
 assert.equal(manifest.name,'EzPIX Insta');assert.deepEqual(manifest.externally_connectable,{matches:['https://glitchbong.com/*']});assert.equal(manifest.side_panel,undefined);assert.equal(manifest.action.default_popup,'app.html');

@@ -140,5 +140,5 @@ export function mountFloatingLayout(host, onMode) {
   }
   const mediaChanges = new MutationObserver(mode); mediaChanges.observe(q('[data-focus-camera-view]'), {attributes: true, attributeFilter: ['hidden']});
   mode();
-  return {loaded() {hasMedia = true; mode();},cleared(){closeExpanded();hasMedia=false;for(const label of coordinateLabels)label.textContent='X: —  Y: —';for(const section of images.children)setCollapsed(section,false);open(groups[0]);mode();}, dispose() {closeExpanded();expanded.remove();resize.disconnect(); canvasChanges.disconnect(); mediaChanges.disconnect();coordinateListeners.forEach(remove=>remove()); if (frame !== undefined) cancelAnimationFrame(frame);}};
+  return {addGroup:group,loaded() {hasMedia = true; mode();},cleared(){closeExpanded();hasMedia=false;for(const label of coordinateLabels)label.textContent='X: —  Y: —';for(const section of images.children)setCollapsed(section,false);open(groups[0]);mode();}, dispose() {closeExpanded();expanded.remove();resize.disconnect(); canvasChanges.disconnect(); mediaChanges.disconnect();coordinateListeners.forEach(remove=>remove()); if (frame !== undefined) cancelAnimationFrame(frame);}};
 }

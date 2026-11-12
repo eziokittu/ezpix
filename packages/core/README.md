@@ -4,8 +4,21 @@ The current version is defined by package.json and ENGINE_VERSION. Browser
 conversion defaults to the full image with its background kept. The Chrome
 capture-only side panel and website converter share this implementation.
 
-Original deterministic RGBA editor and image conversion engine. No runtime
-dependencies or inference. Build with the workspace `npm run build`.
+Original deterministic RGBA editor and image conversion engine. No inference.
+Optional Local share uses bundled MIT qrcode-generator and Apache-2.0 jsQR for
+offline QR generation/reading; no remote service. Build with `npm run build`.
+
+`editPhoto`/`editPhotoFrames` provide immutable crop, quarter-turn rotation,
+pixel captions, canvas borders and deterministic effects. Focus studio exposes
+bounded source edit history and preview/apply/cancel adapters. Source geometry
+edits restore the whole-image selection; refine selections afterward.
+
+`@ezpix/core/local-share` provides five-minute QR/code pairing, a visible security
+code, mutual confirmation, per-file consent, bounded ordered chunks and SHA-256
+before receive. It uses direct WebRTC with no configured STUN/TURN or server.
+`local-share-ui` is mounted explicitly in a persistent tab/dialog. No connection
+starts at app launch; disconnect clears pairing. Browser download fallback can
+confirm only a download request; native/file-system pickers confirm writing.
 
 `prepareAdjustment`, `adjustmentPreview` and `PixelEditor.applyAdjustment` stage
 bounded selected-cel HSL, master/per-channel RGB levels and curves, OKLCH, palette remapping and dithering. HSL uses encoded sRGB with whole
@@ -2199,3 +2212,65 @@ are unchanged. The website continues to consume the matching versioned archive.
 ### Focus worker cache (0.466.2)
 
 `createConversionProcessor` in the worker entry accepts focus frames on the first request. Later requests to that worker may omit unchanged frames. Only a successful focus request replaces its private frame cache; a new worker must load frames again. Selection masks and current recipe/focus settings remain explicit on every request. The UI reuses idle workers, terminates superseded busy workers and releases cached media on replacement, RESET and disposal.
+
+## Photo mode and creative edits (0.468.0)
+
+`mountFocusStudio` accepts `defaultMode: 'photo' | 'pixel'` and exposes `setMode`,
+`getMode`, `getPhoto`, `getSelection` (a defensive mask copy) and async
+`exportImage('png' | 'jpeg' | 'webp')`. Photo worker responses retain source-size
+RGBA outside the bounded PixelDocument schema. Pixel projects keep their limits.
+Photo export is one flattened frame; image edit previews must be resolved first.
+
+`PhotoEdit` additionally supports stamp (validated raster, normalized position,
+size, rotation, opacity), draw (bounded normalized path), redact (region/style)
+and resize (smooth/nearest). Immutable output, alpha and resource bounds apply.
+`createCreativeTools` supplies shared forms and a drawing controller;
+`mountLiveCamera` supplies an explicit foreground camera with cancellation guards.
+`combineSelectionMasks` combines dense membership in document coordinates and
+retains indexed selection metadata, without changing artwork or file schemas.
+See ../../docs/photo-studio-0.468.md for UI scope, limits and camera behavior.
+
+
+## 0.471.1: grouped photo layers and nearby pairing
+
+PhotoSnapshot v2 contains user-created layers with ordered `operations` arrays.
+Each object has a stable ID, label, validated WorkspaceEdit and optional mask.
+One initial editable layer receives edits; adding edits never adds layers.
+Explicit Add layer, duplication, grouping, per-object replacement/removal, layer
+visibility/locks/opacity/order and bounded atomic history are provided by
+PhotoWorkspace. Legacy v1 operation layers remain readable and migrate without
+changing pixels or object IDs on subsequent edits. Older readers reject v2.
+Limits: 48 layers, 256 objects per layer, 64 MiB decoded workspace and existing
+photo media/export budgets. Original remains independent. Layer opacity blends
+the ordered edit group with the image below; geometry groups require opacity 1.
+
+`nearby` exports the NearbyAdapter contract and the optional loopback desktop
+companion client. `local-share-ui` discovers device names and exchanges pairing
+codes through that adapter, asks before accepting an incoming pairing, then uses
+the existing LocalSharePeer mutual verification and encrypted bounded transfer.
+Android supplies a native NSD adapter; desktop uses tools/nearby-desktop.
+The companion advertises only during a leased panel session. No file payloads
+go through DNS-SD, native pairing sockets or the companion. QR remains available
+without it. Neither pairing method guarantees connections across separate
+networks; no public STUN/TURN or cloud signaling is configured.
+
+
+## 0.472.0: live Apply previews
+
+Android opts into createCreativeTools({livePreview:true}). Apply-based controls
+automatically preview their current values, coalescing rapid input into animation
+frames. Apply commits a clone of the successfully displayed edit exactly once;
+invalid or pending values disable Apply. Cancel, leaving a tool and disposal
+invalidate queued frames. Existing explicit-preview consumers retain their UI.
+The shared live-preview controller is exported at ./live-preview.
+
+Source edit previews invalidate old conversion jobs and exports. Cancel redraws
+the committed image and schedules its ready preview again. Workspace drafts
+render once per preview rather than constructing a temporary history stack.
+getWorkspace(false) returns committed layers only; Android project autosave uses
+this so browsing a default preview does not permanently insert it. Explicit save
+and share actions can finish the visible draft before exporting it.
+
+Mobile tool panels use accessible tabs and lazy, collapsible emoji categories. PhotoWorkspace retains ten edit checkpoints with immutable media shared across history; renderFirst produces only the displayed frame and caches up to 48 MiB of retained pipeline stages. Full render/export still processes every frame. Global editing Undo includes committed photo/layer and selection changes; current live drafts cancel before saved history is touched. Image APIs remain local.
+
+The 0.474 engine adds optional deterministic frame patterns, bounded editable collage layouts, stamp positions from -1 to 2, snapping helpers and richer raster text styling. Mobile coordinates display Move X/Y from the bottom left without changing the established top-left serialized coordinate contract. New photo projects containing collage operations require 0.474+ readers; existing v1/v2 projects remain readable. New stamp application discards fully off-canvas stamps in visible unlocked layers within the same Undo transaction; All objects permits recovery before that. Android uses stillOnly to reject animated media; web/extension animation behavior is retained.
