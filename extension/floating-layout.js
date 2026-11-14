@@ -1,3 +1,4 @@
+import {mountFeedbackButtons} from '../packages/core/dist/feedback.js';
 /** Arrange the shared converter in the extension's bounded floating workspace. */
 export function mountFloatingLayout(host, onMode) {
   const q = selector => host.querySelector(selector);
@@ -84,6 +85,8 @@ export function mountFloatingLayout(host, onMode) {
   const fields = [...q('.ez-focus-settings').children];
   group('Pixel grid', fields[0]); group('Style', fields[1]); group('Background', q('.ez-focus-cutout'));
   group('Selection', selection); group('Light, colour & finish', fields[2]);
+  const account=document.createElement('div');const accountButton=document.createElement('button');accountButton.textContent='Account & sync';accountButton.onclick=()=>chrome.tabs.create({url:chrome.runtime.getURL('account.html')});account.append(accountButton);group('Account & sync',account);
+  const feedback=document.createElement('div');mountFeedbackButtons(feedback,'EzPIX Insta');group('Help & feedback',feedback);
   // Keep the converter's bounded defaults available without exposing these sections.
   fields[3].hidden=true;settings.append(fields[3]);
   // Keep captions, controls and readouts in explicit grid cells in every tab.

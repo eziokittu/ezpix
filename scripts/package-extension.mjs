@@ -4,7 +4,7 @@ import {createHash} from 'node:crypto';
 import assert from 'node:assert/strict';
 import {writeNativeZip} from '../packages/core/dist/native-zip.js';
 import {ENGINE_VERSION} from '../packages/core/dist/index.js';
-const expected=['UNICODE-LICENSE.txt','app.css','app.html','app.js','background.js','converter.css','creative.css','floating.css','handoff.html','manifest.json','media.css','media.html','media.js','privacy.html','worker.js','share.html','share.css','share.js','local-share.css','photo.html','photo.css','photo.js',...[16,32,48,128].map(s=>`icons/ezpix-insta-${s}.png`)].sort();
+const expected=['account.html','account.css','account.js','UNICODE-LICENSE.txt','app.css','app.html','app.js','background.js','converter.css','creative.css','floating.css','handoff.html','manifest.json','media.css','media.html','media.js','privacy.html','worker.js','share.html','share.css','share.js','local-share.css','photo.html','photo-editing.css','photo.css','photo.js',...[16,32,48,128].map(s=>`icons/ezpix-insta-${s}.png`)].sort();
 async function entries(dir,prefix=''){const out=[];for(const e of await readdir(dir,{withFileTypes:true})){if(e.isSymbolicLink())throw Error('Release files must not be symlinks');const name=prefix+e.name;out.push(...(e.isDirectory()?await entries(dir+'/'+e.name,name+'/'):[name]));}return out;}
 assert.deepEqual((await entries('dist/extension')).sort(),expected,'Unexpected/missing production files. Rebuild in a clean output directory.');
 const files=new Map();for(const name of expected)files.set(name,new Uint8Array(await readFile('dist/extension/'+name)));

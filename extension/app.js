@@ -1,3 +1,6 @@
+import {mountPhotoColours} from '../packages/core/dist/colour-controls.js';
+import {mountPhotoFinishing} from '../packages/core/dist/photo-tools.js';
+import {mountFeedbackButtons} from '../packages/core/dist/feedback.js';
 import {openDeviceShare} from './open-share.js';
 import {createCreativeTools} from '../packages/core/dist/creative-ui.js';
 import { mountFocusStudio } from '../packages/core/dist/focus-ui.js';
@@ -7,8 +10,9 @@ import { state, purgeExpired } from './db.js';
 import { mountTheme } from './theme.js';
 import { mountFloatingLayout } from './floating-layout.js';
 import {showNotice,watchNotice} from './notice.js';
-import {mountColourPicker} from './colour-picker.js';
+import {startAccountSync} from './account-sync.js';
 mountTheme();
+const feedbackFooter=document.createElement('details');feedbackFooter.className='sf-feedback-footer';feedbackFooter.innerHTML='<summary>Feedback</summary>';mountFeedbackButtons(feedbackFooter,'EzPIX Insta');document.querySelector('main>footer').append(feedbackFooter);const accountButton=document.createElement('button');accountButton.textContent='Account & sync';accountButton.className='sf-account-launch';accountButton.onclick=()=>chrome.tabs.create({url:chrome.runtime.getURL('account.html')});document.querySelector('main>footer').append(accountButton);
 // Leave room for Chrome's toolbar on short displays; Chrome may clamp further.
 document.documentElement.style.setProperty('--popup-max-height',Math.max(280,Math.min(580,screen.availHeight-110))+'px');
 document.documentElement.style.setProperty('--popup-max-width',Math.max(420,Math.min(780,screen.availWidth-24))+'px');
@@ -28,7 +32,7 @@ async function retainSource(source) {
  }catch{setStatus('Local recovery is unavailable. Download your work before closing this popup.',true);}
 }
 const ui = mountFocusStudio(host, {
- createWorker: () => new Worker(new URL('worker.js', location.href), { type: 'module' }),
+ workspace:true,automatic:true,createWorker: () => new Worker(new URL('worker.js', location.href), { type: 'module' }),
  applyLabel: 'Open in Pixel studio',
  sourceLoaded: source => {layout?.loaded();setStatus('Full image selected. Adjust, download or open in Pixel studio.');void retainSource(source);},
  onApply: async doc => {
@@ -51,8 +55,10 @@ localShare.onclick=async()=>{localShare.disabled=true;try{await openDeviceShare(
 const palette=host.querySelector('[data-focus-palette]');palette.value='original';
 for(const option of palette.options)option.defaultSelected=option.value==='original';
 layout=mountFloatingLayout(host,()=>{});
-const colourPicker=mountColourPicker(host);
-const creative=createCreativeTools(host,ui);creative.tools.forEach(([id,,,title],index)=>{const details=layout.addGroup(title,creative.contents[index]);details.classList.add('sf-creative-group');details.addEventListener('toggle',()=>{if(details.open)creative.activate(id);else if(!host.querySelector('.sf-creative-group[open]'))creative.activate();});});
+void startAccountSync(undefined,ui).catch(()=>{});
+const keyColour=host.querySelector('[data-focus-key]');keyColour.type='color';keyColour.readOnly=false;const colourPicker={close(){}};
+const disposeColours=mountPhotoColours(document.body,host,ui),disposeFinishing=mountPhotoFinishing(host,ui);window.addEventListener('pagehide',()=>{disposeColours();disposeFinishing();},{once:true});
+const creative=createCreativeTools(host,ui,{automatic:true,livePreview:true,liveEmoji:true});creative.tools.forEach(([id,,,title],index)=>{const details=layout.addGroup(title,creative.contents[index]);details.classList.add('sf-creative-group');details.addEventListener('toggle',()=>{if(details.open)creative.activate(id);else if(!host.querySelector('.sf-creative-group[open]'))creative.activate();});});
 const liveButton=document.createElement('button');liveButton.textContent='Photo & camera';liveButton.onclick=()=>void chrome.tabs.create({url:chrome.runtime.getURL('photo.html')});document.querySelector('main > footer nav').prepend(liveButton);window.addEventListener('pagehide',()=>creative.dispose(),{once:true});
 const fileInput=host.querySelector('[data-focus-file]'),openFile=fileInput.onchange;
 fileInput.onchange=async()=>{const file=fileInput.files?.[0];pendingFile=file;try{await openFile();}finally{if(pendingFile===file)pendingFile=undefined;}};

@@ -77,13 +77,13 @@ test('moving one object in a grouped layer restores its old pixels without movin
  workspace.removeObject(first);assert.ok(workspace.render()[0].pixels.some((v,i)=>v!==base.pixels[i]));assert.equal(workspace.objects()[0].id,second);
 });
 
-test('global history retains exactly ten mixed actions, including selection, without copying media into every step',()=>{
+test('global history retains every mixed action until the project-open baseline, including selection, without copying media into every step',()=>{
  const base={width:1024,height:1024,pixels:new Uint8ClampedArray(1024*1024*4)},workspace=new PhotoWorkspace([base],true);
  const initial=workspace.snapshot();workspace.rememberSelection(new Uint8Array(1024*1024).fill(1));
  const layer=workspace.active;for(let i=0;i<11;i++)workspace.mutate(layer,'rename','Name '+i);
- assert.equal(workspace.history().steps,10);
- for(let i=0;i<10;i++)assert.equal(workspace.undoEdit(),true);
- assert.equal(workspace.undoEdit(),false);assert.equal(workspace.layers()[0].name,'Name 0');
+ assert.equal(workspace.history().steps,12);
+ for(let i=0;i<12;i++)assert.equal(workspace.undoEdit(),true);
+ assert.equal(workspace.undoEdit(),false);assert.equal(workspace.layers()[0].name,'Layer 1');
  assert.deepEqual(workspace.original(),initial.original[0]);
  const small=new PhotoWorkspace([source()],true);const first=small.append(negative,'Negative');
  small.rememberSelection(new Uint8Array([1,0,0,1]));small.mutate(small.active,'rename','Selected');

@@ -5,11 +5,16 @@ and latest docs/ezpix-continueN.md in the sibling glitchbong checkout.
 
 - This is the separate EzPix extension/shared-core repository. Website UI lives
   in glitchbong on its long-lived ezpix branch; this repo uses main.
-- No runtime AI: no inference, local models, AI SDKs, or generative redraw.
+- Issues8 discards Android model downloads and inference. Smart Remove uses deterministic local exemplar filling without hosted requests or semantic AI claims.
+- Issues7 replaces photo-tool Apply/Cancel with automatic undoable editing.
 - Authoritative algorithms and document/recipe schemas belong in packages/core.
   Both extension and website consume the same version. Do not duplicate them.
 - Keep all processing local by default. User images, captures, project names,
   source URLs, and palettes must not enter logging/telemetry/upload services.
+  The owner's issues6 request explicitly authorizes optional Google account
+  preference sync across Android, extension and website, including named
+  palettes and Google Fonts references. Only validated preferences may enter
+  that opt-in service; artwork, names of projects and capture URLs remain local.
 - Use explicit user-triggered capture and justified minimal permissions. Do not
   request blanket host, clipboard, screen-sharing, or tab access speculatively.
 - Treat captured page data and imported archives as untrusted. Validate schema,

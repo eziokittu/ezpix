@@ -1,12 +1,13 @@
 import {validateRaster,convert,extractPalette,type Raster,type Recipe} from './conversion.js';
 import {createDocument,makeLayer,checkCelBudget,type PixelDocument} from './document.js';
 import {nearestPalettePixel,orderedPaletteOffset} from './palette-map.js';
+import {PHOTO_LOOKS,isPhotoLook,gradePixel,type PhotoLookId} from './photo-looks.js';
 export interface FocusRect{x:number;y:number;width:number;height:number}
-export interface FocusAdjustments{brightness:number;contrast:number;exposure:number;saturation:number;vibrance:number;temperature:number;tint:number;hue:number;gamma:number;shadows:number;highlights:number;sharpness:number;blur:number;filter:'original'|'mono'|'sepia'|'invert';flipX:boolean;flipY:boolean}
+export interface FocusAdjustments{brightness:number;contrast:number;exposure:number;saturation:number;vibrance:number;temperature:number;tint:number;hue:number;gamma:number;shadows:number;highlights:number;sharpness:number;blur:number;filter:PhotoLookId|'mono'|'sepia'|'invert';flipX:boolean;flipY:boolean}
 export const defaultFocusAdjustments=():FocusAdjustments=>({brightness:0,contrast:0,exposure:0,saturation:0,vibrance:0,temperature:0,tint:0,hue:0,gamma:1,shadows:0,highlights:0,sharpness:0,blur:0,filter:'original',flipX:false,flipY:false});
 export interface FocusOptions{rect:FocusRect;method:'background'|'polygon'|'crop'|'chroma';tolerance:number;polygon?:{x:number;y:number}[];shape?:'rectangle'|'ellipse'|'polygon';keyColor?:number[];softness?:number;mask?:Uint8Array;adjustments?:Partial<FocusAdjustments>}
 function rect(r:FocusRect,s:Raster){if(!r||![r.x,r.y,r.width,r.height].every(Number.isInteger)||r.x<0||r.y<0||r.width<1||r.height<1||r.x+r.width>s.width||r.y+r.height>s.height)throw new Error('Select an object inside the image.');}
-function settings(input:Partial<FocusAdjustments>={}):FocusAdjustments{const a={...defaultFocusAdjustments(),...input};for(const k of ['brightness','contrast','saturation','vibrance','temperature','tint','shadows','highlights'] as const)if(!Number.isFinite(a[k])||Math.abs(a[k])>100)throw new Error('Invalid photo adjustment.');if(!Number.isFinite(a.exposure)||Math.abs(a.exposure)>3||!Number.isFinite(a.gamma)||a.gamma<.25||a.gamma>4||!Number.isFinite(a.hue)||Math.abs(a.hue)>180||!Number.isFinite(a.sharpness)||a.sharpness<0||a.sharpness>100||!Number.isInteger(a.blur)||a.blur<0||a.blur>2||!['original','mono','sepia','invert'].includes(a.filter)||typeof a.flipX!=='boolean'||typeof a.flipY!=='boolean')throw new Error('Invalid photo adjustment.');return a;}
+function settings(input:Partial<FocusAdjustments>={}):FocusAdjustments{const a={...defaultFocusAdjustments(),...input};for(const k of ['brightness','contrast','saturation','vibrance','temperature','tint','shadows','highlights'] as const)if(!Number.isFinite(a[k])||Math.abs(a[k])>100)throw new Error('Invalid photo adjustment.');if(!Number.isFinite(a.exposure)||Math.abs(a.exposure)>3||!Number.isFinite(a.gamma)||a.gamma<.25||a.gamma>4||!Number.isFinite(a.hue)||Math.abs(a.hue)>180||!Number.isFinite(a.sharpness)||a.sharpness<0||a.sharpness>100||!Number.isInteger(a.blur)||a.blur<0||a.blur>2||!isPhotoLook(a.filter)&&!['mono','sepia','invert'].includes(a.filter)||typeof a.flipX!=='boolean'||typeof a.flipY!=='boolean')throw new Error('Invalid photo adjustment.');return a;}
 /** Non-destructive local cutout and tone controls. No semantic segmentation. */
 export function focusRaster(source:Raster,options:FocusOptions):Raster{
  validateRaster(source);rect(options.rect,source);const shape=options.shape??(options.method==='polygon'?'polygon':'rectangle'),a=settings(options.adjustments);
@@ -22,6 +23,7 @@ export function focusRaster(source:Raster,options:FocusOptions):Raster{
   for(let x=0;x<w;x++){add(x);add((h-1)*w+x);}for(let y=0;y<h;y++){add(y*w);add(y*w+w-1);}
   while(start<end){const i=queue[start++],x=i%w,y=Math.floor(i/w);pixels.fill(0,i*4,i*4+4);if(x)add(i-1);if(x<w-1)add(i+1);if(y)add(i-w);if(y<h-1)add(i+w);}
  }
+ const grade=PHOTO_LOOKS.find(look=>look.id===a.filter);
  const tone=Object.entries(a).some(([key,value])=>!['flipX','flipY','blur','sharpness'].includes(key)&&value!==(defaultFocusAdjustments() as unknown as Record<string,unknown>)[key]);
  const clamp=(n:number)=>Math.max(0,Math.min(255,Math.round(n))),angle=a.hue*Math.PI/180,co=Math.cos(angle),si=Math.sin(angle);
  for(let y=0;y<h;y++)for(let x=0;x<w;x++){
@@ -36,7 +38,7 @@ export function focusRaster(source:Raster,options:FocusOptions):Raster{
   rgb=rgb.map((v,k)=>{v*=2**a.exposure;v+=(a.brightness+a.shadows*(1-luma)**2+a.highlights*luma*luma)*2.55;v+=(k===0?a.temperature:k===2?-a.temperature:0)*.5+(k===1?-a.tint:a.tint*.5)*.4;v=(v-127.5)*(1+a.contrast/100)+127.5;return 255*(Math.max(0,Math.min(255,v))/255)**(1/a.gamma);});
   const grey=rgb[0]*.2126+rgb[1]*.7152+rgb[2]*.0722,sat=1+a.saturation/100+a.vibrance/100*(1-(Math.max(...rgb)-Math.min(...rgb))/255);rgb=rgb.map(v=>grey+(v-grey)*sat);
   if(a.hue){const [red,green,blue]=rgb;rgb=[(.299+.701*co+.168*si)*red+(.587-.587*co+.330*si)*green+(.114-.114*co-.497*si)*blue,(.299-.299*co-.328*si)*red+(.587+.413*co+.035*si)*green+(.114-.114*co+.292*si)*blue,(.299-.299*co+1.250*si)*red+(.587-.587*co-1.050*si)*green+(.114+.886*co-.203*si)*blue];}
-  if(a.filter==='mono')rgb=[grey,grey,grey];if(a.filter==='invert')rgb=rgb.map(v=>255-v);if(a.filter==='sepia'){const [red,green,blue]=rgb;rgb=[red*.393+green*.769+blue*.189,red*.349+green*.686+blue*.168,red*.272+green*.534+blue*.131];}pixels.set(rgb.map(clamp),i);
+  if(a.filter==='mono')rgb=[grey,grey,grey];if(a.filter==='invert')rgb=rgb.map(v=>255-v);if(a.filter==='sepia'){const [red,green,blue]=rgb;rgb=[red*.393+green*.769+blue*.189,red*.349+green*.686+blue*.168,red*.272+green*.534+blue*.131];}if(grade&&grade.id!=='original')rgb=gradePixel(rgb,grade,x,y,w,h);pixels.set(rgb.map(clamp),i);
  }
  if(a.blur||a.sharpness){const before=pixels.slice(),radius=a.blur||1;for(let y=0;y<h;y++)for(let x=0;x<w;x++){const i=(y*w+x)*4;if(!pixels[i+3])continue;const sum=[0,0,0];let weight=0;for(let dy=-radius;dy<=radius;dy++)for(let dx=-radius;dx<=radius;dx++){const px=x+dx,py=y+dy;if(px<0||py<0||px>=w||py>=h)continue;const j=(py*w+px)*4;if(!before[j+3])continue;weight++;for(let k=0;k<3;k++)sum[k]+=before[j+k];}for(let k=0;k<3;k++)pixels[i+k]=clamp(a.blur?sum[k]/weight:before[i+k]+(before[i+k]-sum[k]/weight)*a.sharpness/50);}}
  if(a.flipX||a.flipY){const before=pixels.slice();for(let y=0;y<h;y++)for(let x=0;x<w;x++){const i=((a.flipY?h-1-y:y)*w+(a.flipX?w-1-x:x))*4;pixels.set(before.subarray(i,i+4),(y*w+x)*4);}}

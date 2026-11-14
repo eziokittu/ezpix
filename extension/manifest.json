@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "EzPIX Insta",
-  "version": "0.476.0",
+  "version": "0.482.0",
   "minimum_chrome_version": "127",
   "description": "Capture and convert images in a toolbar pixel studio. Compare source and preview, tune settings and download or open the web editor.",
   "permissions": [
@@ -34,5 +34,8 @@
     "matches": [
       "https://glitchbong.com/*"
     ]
-  }
+  },
+  "optional_host_permissions": [
+    "https://glitchbong.com/*"
+  ]
 }

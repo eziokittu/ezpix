@@ -1,6 +1,6 @@
 {
   "name": "@ezpix/core",
-  "version": "0.476.0",
+  "version": "0.482.0",
   "private": true,
   "type": "module",
   "files": [
@@ -90,6 +90,63 @@
     "./color": {
       "types": "./dist/color.d.ts",
       "default": "./dist/color.js"
+    },
+    "./preferences": {
+      "types": "./dist/preferences.d.ts",
+      "default": "./dist/preferences.js"
+    },
+    "./account-client": {
+      "types": "./dist/account-client.d.ts",
+      "default": "./dist/account-client.js"
+    },
+    "./font-import": {
+      "types": "./dist/font-import.d.ts",
+      "default": "./dist/font-import.js"
+    },
+    "./photo-lab": {
+      "types": "./dist/photo-lab.d.ts",
+      "default": "./dist/photo-lab.js"
+    },
+    "./synced-fonts": {
+      "types": "./dist/synced-fonts.d.ts",
+      "default": "./dist/synced-fonts.js"
+    },
+    "./preference-palettes": {
+      "types": "./dist/preference-palettes.d.ts",
+      "default": "./dist/preference-palettes.js"
+    },
+    "./automatic-edit": {
+      "types": "./dist/automatic-edit.d.ts",
+      "default": "./dist/automatic-edit.js"
+    },
+    "./photo-effects": {
+      "types": "./dist/photo-effects.d.ts",
+      "default": "./dist/photo-effects.js"
+    },
+    "./pixel-shapes": {
+      "types": "./dist/pixel-shapes.d.ts",
+      "default": "./dist/pixel-shapes.js"
+    },
+    "./visual-choices": {
+      "types": "./dist/visual-choices.d.ts",
+      "default": "./dist/visual-choices.js"
+    },
+    "./colour-controls": {
+      "types": "./dist/colour-controls.d.ts",
+      "default": "./dist/colour-controls.js"
+    },
+    "./photo-tools": {
+      "types": "./dist/photo-tools.d.ts",
+      "default": "./dist/photo-tools.js"
+    },
+    "./photo-editing.css": "./dist/photo-editing.css",
+    "./dialogs": {
+      "types": "./dist/dialogs.d.ts",
+      "default": "./dist/dialogs.js"
+    },
+    "./smart-remove": {
+      "types": "./dist/smart-remove.d.ts",
+      "default": "./dist/smart-remove.js"
     }
   }
 }

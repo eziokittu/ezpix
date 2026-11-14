@@ -6,14 +6,16 @@ export function processConversion(data: { source: Raster; recipe: Recipe }) {
   return { width: doc.width, height: doc.height, pixels: doc.cel.pixels };
 }
 /** Cache media within this worker only; replacing/terminating it drops those pixels. */
+// Worker hosts transfer result pixels. Never let that detach cached source frames.
+const transferPhoto=(photo:Raster,frames:Raster[]):Raster=>frames.some(frame=>frame.pixels.buffer===photo.pixels.buffer)?{...photo,pixels:photo.pixels.slice()}:photo;
 export function createConversionProcessor(){
  let source:Raster|undefined,focusFrames:Raster[]|undefined;
- return (data:{source?:Raster;recipe:Recipe;focus?:{frames?:Raster[];options:FocusOptions;fps:number;track:boolean;photo?:boolean;workspace?:boolean;fullMask?:Uint8Array|null}})=>{
+ return (data:{source?:Raster;recipe:Recipe;focus?:{frames?:Raster[];options:FocusOptions;fps:number;track:boolean;photo?:boolean;workspace?:boolean;committed?:boolean;fullMask?:Uint8Array|null}})=>{
   if(data.focus){
    const f=data.focus,frames=f.frames??focusFrames;
    if(!frames)throw new Error('Load focus frames before converting.');
-   if(f.photo){if(!frames.length||frames.length>32)throw Error('Invalid photo frames.');for(const frame of frames)validateRaster(frame);if(frames.reduce((n,f)=>n+f.pixels.byteLength,0)>32*1024*1024)throw Error('Photo frames exceed 32 MiB.');const photo=f.workspace?renderWorkspaceEdit(frames[0],{kind:'tone',options:f.options},f.fullMask??null):focusRaster(frames[0],f.options);focusFrames=frames;return {width:photo.width,height:photo.height,pixels:photo.pixels,photo};}
-   if(f.workspace){const photo=renderWorkspaceEdit(frames[0],{kind:'tone',options:f.options,recipe:data.recipe},f.fullMask??null);focusFrames=frames;return {width:photo.width,height:photo.height,pixels:photo.pixels,photo,project:encodeProject(focusAnimation(frames,f.options,data.recipe,f.fps,f.track),false)};}
+   if(f.photo){if(!frames.length||frames.length>32)throw Error('Invalid photo frames.');for(const frame of frames)validateRaster(frame);if(frames.reduce((n,f)=>n+f.pixels.byteLength,0)>32*1024*1024)throw Error('Photo frames exceed 32 MiB.');const photo=f.workspace&&f.committed?frames[0]:f.workspace?renderWorkspaceEdit(frames[0],{kind:'tone',options:f.options},f.fullMask??null):focusRaster(frames[0],f.options);focusFrames=frames;const output=transferPhoto(photo,frames);return {width:output.width,height:output.height,pixels:output.pixels,photo:output};}
+   if(f.workspace){const photo=f.committed?frames[0]:renderWorkspaceEdit(frames[0],{kind:'tone',options:f.options,recipe:data.recipe},f.fullMask??null);focusFrames=frames;const output=transferPhoto(photo,frames);return {width:output.width,height:output.height,pixels:output.pixels,photo:output,project:encodeProject(focusAnimation(frames,f.options,data.recipe,f.fps,f.track),false)};}
    const doc=focusAnimation(frames,f.options,data.recipe,f.fps,f.track);
    // Cache only a successful request, so rejected replacement data cannot poison it.
    focusFrames=frames;

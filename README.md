@@ -2,7 +2,12 @@
 
 Photo studio, live camera and expanded selection: [0.468 delivery notes](docs/photo-studio-0.468.md).
 
-Current local extension and shared engine: **0.476.0**. EzPIX Insta captures and converts media in a normal Chrome toolbar popup. Local share opens a persistent tab for account-free direct device transfer. Manual Pixel studio lives at https://glitchbong.com/tools/ezpix.
+Current local extension and shared engine: **0.482.0**. EzPIX Insta captures and converts media in a normal Chrome toolbar popup. Local share opens a persistent tab for account-free direct device transfer. Manual Pixel studio lives at https://glitchbong.com/tools/ezpix.
+
+Android issues10 adds atomic image import, shared emoji/shape editing, an
+animated display-only selection outline and collage performance improvements.
+See [0.482 delivery](docs/issues10-0.482.md). Android is 1.4.0/code 17; its former
+downloaded AI workflow is retired in favour of deterministic local Smart Remove.
 
 The 11 November update adds shared mobile image edits, QR/security-code pairing,
 mutual file consent, bounded/checksummed WebRTC transfer and matching Android/web
@@ -11,7 +16,7 @@ The update is local; Web Store publication and hosted deployment are separate.
 
 The published store item is https://chromewebstore.google.com/detail/ezpix-insta/eijjjhokfogdfcnednolghbegpddneci. Source is maintained at https://github.com/eziokittu/ezpix; update ZIPs are prepared locally. Upload the new version to the same store item.
 
-New sources preview the full image with background preserved and Original colours selected by default, including after RESET. Select smaller geometry or restore the entire image. Sample background colours through a source-only circular magnifier and adjust tolerance/softness. Grid, palette, background, selection and photo controls expand as needed. Click the colour swatch to open a rectangular colour picker, or sample the source using the smaller magnifier. Both previews show zero-based image-pixel coordinates at the bottom right. Animation and Capture limits sections are hidden; media bounds and fixed animation defaults remain in force. Download locally, or explicitly transfer converted artwork to the web editor for automatic import, with confirmation when replacing unsaved artwork. No runtime AI, image upload, analytics or account.
+New sources preview the full image with background preserved and Original colours selected by default, including after RESET. Select smaller geometry or restore the entire image. Sample background colours through a source-only circular magnifier and adjust tolerance/softness. Grid, palette, background, selection and photo controls expand as needed. Click the colour swatch to open a rectangular colour picker, or sample the source using the smaller magnifier. Both previews show zero-based image-pixel coordinates at the bottom right. Animation and Capture limits sections are hidden; media bounds and fixed animation defaults remain in force. Download locally, or explicitly transfer converted artwork to the web editor for automatic import, with confirmation when replacing unsaved artwork. The extension performs local deterministic processing without runtime AI or image uploads. Optional Google account sync transfers setup preferences only.
 
 The website EzPIX Insta button installs the extension when unavailable or opens its existing toolbar popup when version 0.465.6+ is detected. Chrome grants page capture through the pinned icon; a website launch without that grant opens the local-media chooser. Source pushes require explicit owner authorization; Chrome Web Store uploads remain a separate action.
 
@@ -53,3 +58,20 @@ For this local update, load/reload `dist/extension` in chrome://extensions. The 
 Photo workspace changes for Android 0.5 are described in [the delivery map](../ezpix-android/docs/ISSUES1-DELIVERY.md). The new photo-layer/schema implementation remains in this shared core.
 
 Android 0.6 dock, grouped editable photo layers (photo schema v2, v1 reader retained), and nearby device discovery are mapped in [issues2 delivery](../ezpix-android/docs/ISSUES2-DELIVERY.md). Desktop discovery uses the optional first-party [local companion](tools/nearby-desktop/README.md). QR and nearby pairing both retain mutual security-code confirmation and encrypted WebRTC payloads.
+
+Android 0.9.0 adds fourteen authored photo looks, whole-canvas crop geometry and shared feedback intents. See [issues5 delivery](../ezpix-android/docs/ISSUES5-DELIVERY.md). Extension settings/footer feedback buttons await the owner's Google Form URL. The 0.477.2 ZIP is local; no publication is implied.
+# Android 1.0 coordinated update
+
+Shared engine and extension: **0.480.0**. Optional Google account setup sync,
+bounded Google Fonts caching, and deterministic Tone lab / sampled Repair
+operations are included. The Android UI consumes the versioned package; cloud
+sync requires the prepared website migration and deployment. See
+[account deployment](../glitchbong/docs/ezpix-account-1.0.md) and
+[Android delivery](../ezpix-android/docs/ISSUES6-DELIVERY.md). Artwork processing
+remains local. This is a local build; no extension publication was performed.
+
+
+Issues8 for Android 1.2.0 updates shared text/emoji scene selection, complete
+session history, confirmed colour sampling, floating style menus, gapless pixel
+patterns and local exemplar removal. See `../ezpix-android/docs/ISSUES8-DELIVERY.md`.
+The downloaded Android model workflow is retired; Smart Remove does not use AI.
