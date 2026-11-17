@@ -1,6 +1,6 @@
 {
   "name": "@ezpix/core",
-  "version": "0.482.0",
+  "version": "0.483.0",
   "private": true,
   "type": "module",
   "files": [
@@ -147,6 +147,10 @@
     "./smart-remove": {
       "types": "./dist/smart-remove.d.ts",
       "default": "./dist/smart-remove.js"
+    },
+    "./photo-paint": {
+      "types": "./dist/photo-paint.d.ts",
+      "default": "./dist/photo-paint.js"
     }
   }
 }
